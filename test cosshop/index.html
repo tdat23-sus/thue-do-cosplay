@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosplay Rental</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<header>
+    <h1>Cosplay Rental</h1>
+    <p>Chọn nhân vật để xem lịch thuê</p>
+</header>
+
+<main>
+    <div id="character-list" class="character-grid"></div>
+
+    <section id="calendar-page" class="hidden">
+        <button onclick="goBack()">← Quay lại</button>
+
+        <h2 id="character-name"></h2>
+        <p id="character-description"></p>
+
+        <div id="calendar"></div>
+    </section>
+</main>
+
+<script src="script.js"></script>
+
+</body>
+</html>
