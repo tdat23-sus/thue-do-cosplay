@@ -2,214 +2,481 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chiyoo Shop - Admin</title>
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Chiyoo Shop — Admin</title>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
-        * { box-sizing: border-box; }
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             margin: 0;
             font-family: Arial, sans-serif;
-            background: #f7f5f6;
-            color: #29252a;
+            background: #f7f7fb;
+            color: #222;
         }
-        .topbar {
-            background: #3a2632;
+
+        header {
+            background: #111;
             color: white;
-            padding: 16px 20px;
+            padding: 18px 20px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 15px;
-            flex-wrap: wrap;
         }
-        .brand { font-size: 21px; font-weight: 800; }
-        .top-actions { display: flex; gap: 8px; }
-        button, .link-button {
+
+        header h1 {
+            margin: 0;
+            font-size: 20px;
+        }
+
+        header p {
+            margin: 5px 0 0;
+            opacity: .75;
+            font-size: 13px;
+        }
+
+        .header-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        button {
             border: 0;
             border-radius: 10px;
-            padding: 10px 15px;
+            padding: 11px 15px;
             cursor: pointer;
-            font-weight: 700;
+            font-weight: 600;
         }
-        .btn-light { background: white; color: #3a2632; }
-        .btn-primary { background: #8d4968; color: white; }
-        .btn-danger { background: #b33b4b; color: white; }
+
+        .btn-light {
+            background: white;
+            color: #222;
+        }
+
+        .btn-dark {
+            background: #222;
+            color: white;
+        }
+
         main {
-            max-width: 1100px;
-            margin: 25px auto;
-            padding: 0 16px 50px;
+            width: min(1100px, calc(100% - 30px));
+            margin: 25px auto 50px;
         }
-        .notice {
+
+        .admin-message {
             padding: 14px 16px;
-            border-radius: 12px;
-            background: #fff;
+            border-radius: 10px;
             margin-bottom: 18px;
-            border: 1px solid #e6dfe3;
+            display: none;
         }
-        .grid {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-            gap: 20px;
+
+        .admin-message.success {
+            background: #e9f9ee;
+            color: #176b32;
         }
+
+        .admin-message.error {
+            background: #ffe9ed;
+            color: #a51d35;
+        }
+
         .panel {
             background: white;
-            border: 1px solid #e6dfe3;
             border-radius: 16px;
-            padding: 20px;
-            box-shadow: 0 4px 20px rgba(0,0,0,.04);
+            padding: 22px;
+            margin-bottom: 22px;
+            box-shadow: 0 4px 20px rgba(0,0,0,.06);
         }
-        h1, h2 { margin-top: 0; }
+
+        .panel h2 {
+            margin-top: 0;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+        }
+
+        .form-group.full {
+            grid-column: 1 / -1;
+        }
+
         label {
-            display: block;
-            margin: 14px 0 7px;
-            font-weight: 700;
+            font-size: 14px;
+            font-weight: 600;
         }
-        input, textarea {
+
+        input,
+        textarea {
             width: 100%;
-            padding: 11px 12px;
-            border: 1px solid #d8cfd4;
+            border: 1px solid #ddd;
             border-radius: 10px;
-            font: inherit;
+            padding: 12px;
+            font-size: 15px;
             outline: none;
         }
-        textarea { min-height: 100px; resize: vertical; }
-        input:focus, textarea:focus {
-            border-color: #8d4968;
+
+        input:focus,
+        textarea:focus {
+            border-color: #888;
         }
-        .upload-box {
-            border: 2px dashed #d4c1ca;
+
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        input[type="checkbox"] {
+            width: auto;
+        }
+
+        .image-preview-box {
+            margin-top: 10px;
+        }
+
+        #image-preview {
+            display: none;
+            width: 100%;
+            max-width: 500px;
+            aspect-ratio: 16 / 9;
+            object-fit: contain;
+            background: #f1f1f1;
+            border-radius: 12px;
+            border: 1px solid #ddd;
+        }
+
+        .submit-button {
+            margin-top: 20px;
+            background: #111;
+            color: white;
+            width: 100%;
+            font-size: 15px;
+        }
+
+        .submit-button:disabled {
+            opacity: .6;
+            cursor: not-allowed;
+        }
+
+        #character-list {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 18px;
+        }
+
+        .admin-character-card {
+            border: 1px solid #eee;
             border-radius: 14px;
-            padding: 18px;
-            text-align: center;
-            margin-top: 8px;
+            overflow: hidden;
+            background: white;
         }
-        .preview {
+
+        .admin-character-image {
             width: 100%;
             aspect-ratio: 16 / 9;
             object-fit: contain;
-            background: #f1edef;
-            border-radius: 10px;
-            margin-top: 12px;
-            display: none;
+            background: #f1f1f1;
+            display: block;
         }
-        .help {
-            font-size: 13px;
-            color: #746b70;
-            margin-top: 6px;
-        }
-        .character-list {
-            display: grid;
-            gap: 12px;
-        }
-        .character-row {
-            display: grid;
-            grid-template-columns: 110px 1fr auto;
-            gap: 12px;
+
+        .admin-character-no-image {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            background: #eee;
+            display: flex;
             align-items: center;
-            border: 1px solid #e7e0e4;
-            border-radius: 12px;
-            padding: 10px;
+            justify-content: center;
+            color: #888;
         }
-        .character-row img {
-            width: 110px;
-            height: 75px;
-            object-fit: contain;
-            background: #f3f0f1;
-            border-radius: 8px;
+
+        .admin-character-info {
+            padding: 15px;
         }
-        .muted { color: #766e73; font-size: 13px; }
-        .status { font-size: 12px; font-weight: 700; }
-        .status.active { color: #25824a; }
-        .status.hidden-status { color: #a34d58; }
-        .row-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-        .loading { opacity: .65; pointer-events: none; }
-        @media (max-width: 760px) {
-            .grid { grid-template-columns: 1fr; }
-            .character-row {
-                grid-template-columns: 85px 1fr;
+
+        .admin-character-info h3 {
+            margin: 0 0 6px;
+        }
+
+        .admin-character-info p {
+            margin: 6px 0;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .admin-character-info button {
+            margin-top: 8px;
+            background: #eee;
+        }
+
+        #access-notice {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,.06);
+        }
+
+        @media (max-width: 700px) {
+            header {
+                align-items: flex-start;
+                flex-direction: column;
             }
-            .character-row img {
-                width: 85px;
-                height: 65px;
+
+            .header-buttons {
+                width: 100%;
             }
-            .row-actions { grid-column: 1 / -1; justify-content: flex-start; }
+
+            .header-buttons button {
+                flex: 1;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .form-group.full {
+                grid-column: auto;
+            }
+
+            #character-list {
+                grid-template-columns: 1fr;
+            }
+
+            main {
+                width: min(100% - 20px, 1100px);
+                margin-top: 15px;
+            }
+
+            .panel {
+                padding: 16px;
+            }
         }
     </style>
 </head>
 
 <body>
 
-<header class="topbar">
-    <div class="brand">Chiyoo Shop — Admin</div>
-    <div class="top-actions">
-        <button class="btn-light" onclick="goShop()">Xem shop</button>
-        <button class="btn-light" onclick="logout()">Đăng xuất</button>
+<header>
+    <div>
+        <h1>Chiyoo Shop — Admin</h1>
+        <p>Xin chào, <span id="admin-name">Admin</span></p>
+    </div>
+
+    <div class="header-buttons">
+        <button
+            id="shop-button"
+            class="btn-light"
+            type="button"
+        >
+            Xem shop
+        </button>
+
+        <button
+            id="logout-button"
+            class="btn-dark"
+            type="button"
+        >
+            Đăng xuất
+        </button>
     </div>
 </header>
 
 <main>
-    <div id="access-notice" class="notice">
-        Đang kiểm tra quyền admin...
+
+    <!-- THÔNG BÁO -->
+    <div
+        id="admin-message"
+        class="admin-message"
+    ></div>
+
+    <!-- KIỂM TRA QUYỀN -->
+    <div
+        id="access-notice"
+        style="display:none;"
+    >
+        <h2>Đang kiểm tra quyền...</h2>
+        <p>Vui lòng chờ một chút.</p>
     </div>
 
-    <div id="admin-content" class="grid" style="display:none;">
+    <!-- NỘI DUNG ADMIN -->
+    <div
+        id="admin-content"
+        style="display:none;"
+    >
 
+        <!-- THÊM NHÂN VẬT -->
         <section class="panel">
-            <h2>Thêm nhân vật</h2>
-            <p class="muted">
-                Admin có thể chọn ảnh trực tiếp từ máy. Ảnh sẽ được lưu vào Supabase Storage.
-            </p>
+
+            <h2>➕ Thêm nhân vật</h2>
 
             <form id="character-form">
 
-                <label for="name">Tên nhân vật *</label>
-                <input id="name" required placeholder="Ví dụ: Sinestrea">
+                <div class="form-grid">
 
-                <label for="category">Thể loại</label>
-                <input id="category" placeholder="Ví dụ: Genshin Impact">
+                    <!-- TÊN -->
+                    <div class="form-group">
+                        <label for="character-name">
+                            Tên nhân vật
+                        </label>
 
-                <label for="price">Giá thuê / ngày *</label>
-                <input id="price" required placeholder="Ví dụ: 300.000đ / ngày">
-
-                <label for="description">Mô tả</label>
-                <textarea id="description" placeholder="Mô tả bộ cosplay..."></textarea>
-
-                <label for="items">Các món đi kèm</label>
-                <textarea id="items" placeholder="Mỗi món một dòng&#10;Trang phục&#10;Tóc giả&#10;Phụ kiện"></textarea>
-
-                <label>Ảnh nhân vật *</label>
-                <div class="upload-box">
-                    <input id="image" type="file" accept="image/*" required>
-                    <img id="preview" class="preview" alt="Xem trước">
-                    <div class="help">
-                        Nên dùng ảnh ngang để hiển thị đẹp trên shop.
+                        <input
+                            type="text"
+                            id="character-name"
+                            placeholder="Ví dụ: Hu Tao"
+                            required
+                        >
                     </div>
+
+                    <!-- THỂ LOẠI -->
+                    <div class="form-group">
+                        <label for="character-category">
+                            Thể loại
+                        </label>
+
+                        <input
+                            type="text"
+                            id="character-category"
+                            placeholder="Ví dụ: Genshin Impact"
+                            required
+                        >
+                    </div>
+
+                    <!-- GIÁ -->
+                    <div class="form-group">
+                        <label for="character-price">
+                            Giá thuê / ngày
+                        </label>
+
+                        <input
+                            type="number"
+                            id="character-price"
+                            placeholder="250000"
+                            min="0"
+                            required
+                        >
+                    </div>
+
+                    <!-- ẢNH -->
+                    <div class="form-group">
+                        <label for="character-image">
+                            Ảnh nhân vật
+                        </label>
+
+                        <input
+                            type="file"
+                            id="character-image"
+                            accept="image/*"
+                            required
+                        >
+                    </div>
+
+                    <!-- MÔ TẢ -->
+                    <div class="form-group full">
+                        <label for="character-description">
+                            Mô tả
+                        </label>
+
+                        <textarea
+                            id="character-description"
+                            placeholder="Mô tả về bộ cosplay..."
+                        ></textarea>
+                    </div>
+
+                    <!-- PHỤ KIỆN -->
+                    <div class="form-group full">
+                        <label for="character-items">
+                            Phụ kiện đi kèm
+                        </label>
+
+                        <textarea
+                            id="character-items"
+                            placeholder="Tóc giả&#10;Trang phục&#10;Phụ kiện..."
+                        ></textarea>
+
+                        <small>
+                            Mỗi phụ kiện viết trên một dòng.
+                        </small>
+                    </div>
+
+                    <!-- TRẠNG THÁI -->
+                    <div class="form-group full">
+
+                        <label>
+                            <input
+                                type="checkbox"
+                                id="character-active"
+                                checked
+                            >
+
+                            Hiển thị nhân vật trên shop
+                        </label>
+
+                    </div>
+
+                    <!-- PREVIEW -->
+                    <div class="form-group full">
+
+                        <label>
+                            Xem trước ảnh
+                        </label>
+
+                        <div class="image-preview-box">
+
+                            <img
+                                id="image-preview"
+                                src=""
+                                alt="Xem trước ảnh"
+                            >
+
+                        </div>
+
+                    </div>
+
                 </div>
 
-                <label>
-                    <input id="is-active" type="checkbox" checked style="width:auto;">
-                    Hiển thị nhân vật trên website
-                </label>
-
-                <button id="save-button" class="btn-primary" type="submit">
+                <button
+                    type="submit"
+                    class="submit-button"
+                >
                     Upload ảnh & lưu nhân vật
                 </button>
+
             </form>
+
         </section>
 
+        <!-- DANH SÁCH -->
         <section class="panel">
-            <h2>Nhân vật hiện có</h2>
-            <div id="character-list" class="character-list">
-                Đang tải...
+
+            <h2>📦 Nhân vật hiện có</h2>
+
+            <div id="character-list">
+                <p>Đang tải...</p>
             </div>
+
         </section>
 
     </div>
+
 </main>
 
 <script src="admin.js"></script>
+
 </body>
 </html>
