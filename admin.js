@@ -34,10 +34,6 @@ function escapeHtml(value) {
         .replace(/'/g, "&#039;");
 }
 
-function formatPrice(price) {
-    return Number(price || 0).toLocaleString("vi-VN") + "đ";
-}
-
 function showMessage(message, type = "success") {
     const box = document.getElementById("admin-message");
 
@@ -67,7 +63,11 @@ async function checkAdmin() {
 
     if (sessionError) {
         console.error(sessionError);
-        showAccessDenied("Không thể kiểm tra phiên đăng nhập.");
+
+        showAccessDenied(
+            "Không thể kiểm tra phiên đăng nhập."
+        );
+
         return false;
     }
 
@@ -204,7 +204,6 @@ if (imageInput) {
                     imagePreview.style.display =
                         "block";
                 }
-
             };
 
             reader.readAsDataURL(file);
@@ -363,14 +362,13 @@ if (characterForm) {
                         ?.value
                         .trim();
 
-                const price =
-                    Number(
-                        document
-                            .getElementById(
-                                "character-price"
-                            )
-                            ?.value || 0
-                    );
+                const address =
+                    document
+                        .getElementById(
+                            "character-address"
+                        )
+                        ?.value
+                        .trim();
 
                 const description =
                     document
@@ -411,9 +409,9 @@ if (characterForm) {
                     );
                 }
 
-                if (price < 0) {
+                if (!address) {
                     throw new Error(
-                        "Giá thuê không được âm."
+                        "Vui lòng nhập địa chỉ."
                     );
                 }
 
@@ -464,9 +462,9 @@ if (characterForm) {
                     .insert({
                         name: name,
                         category: category,
+                        address: address,
                         description:
                             description || null,
-                        price_per_day: price,
                         image_url:
                             uploaded.url,
                         included_items:
@@ -652,12 +650,15 @@ async function loadCharacters() {
                                 )}
                             </p>
 
-                            <strong>
-                                ${formatPrice(
-                                    character.price_per_day
-                                )}
-                                / ngày
-                            </strong>
+                            <p>
+                                📍 Địa chỉ:
+                                <strong>
+                                    ${escapeHtml(
+                                        character.address ||
+                                        "Chưa cập nhật"
+                                    )}
+                                </strong>
+                            </p>
 
                             <p>
                                 Trạng thái:
