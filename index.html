@@ -36,16 +36,33 @@
 
         <div class="header-inner">
 
-            <a href="#" class="logo" onclick="goHome()">
-                <span class="logo-icon">✦</span>
-                <span>Chiyoo Shop</span>
-            </a>
+    <a href="#" class="logo" onclick="goHome()">
+        <span class="logo-icon">✦</span>
+        <span>Cosplay Rental</span>
+    </a>
 
-            <button class="search-button" onclick="focusSearch()">
-                🔍
-            </button>
+    <div class="header-actions">
 
-            <div class="auth-area">
+        <!-- CHỈ ADMIN MỚI THẤY -->
+        <button
+            id="admin-button"
+            class="admin-button"
+            onclick="openAdminPage()"
+            style="display: none;"
+        >
+            ⚙ Quản trị
+        </button>
+
+        <button
+            class="search-button"
+            onclick="focusSearch()"
+        >
+            🔍
+        </button>
+
+    </div>
+
+</div> class="auth-area">
                 <button id="auth-button" class="auth-button primary" onclick="openAuthModal()">
                     Đăng nhập
                 </button>
