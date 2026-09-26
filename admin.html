@@ -58,6 +58,11 @@
             font-weight: 600;
         }
 
+        button:disabled {
+            opacity: .6;
+            cursor: not-allowed;
+        }
+
         .btn-light {
             background: white;
             color: #222;
@@ -162,17 +167,36 @@
             border: 1px solid #ddd;
         }
 
-        .submit-button {
+        .current-image-note {
+            display: none;
+            margin-top: 8px;
+            color: #777;
+            font-size: 13px;
+        }
+
+        .form-buttons {
+            display: flex;
+            gap: 10px;
             margin-top: 20px;
+        }
+
+        .submit-button {
             background: #111;
             color: white;
             width: 100%;
             font-size: 15px;
+            margin-top: 0;
         }
 
-        .submit-button:disabled {
-            opacity: .6;
-            cursor: not-allowed;
+        .cancel-edit-button {
+            display: none;
+            background: #eee;
+            color: #222;
+            min-width: 130px;
+        }
+
+        .edit-mode-title {
+            color: #8a5a00;
         }
 
         #character-list {
@@ -220,9 +244,26 @@
             font-size: 14px;
         }
 
-        .admin-character-info button {
-            margin-top: 8px;
+        .admin-character-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .admin-character-actions button {
+            margin-top: 0;
             background: #eee;
+        }
+
+        .edit-character-button {
+            background: #fff3cd !important;
+            color: #7a5200;
+        }
+
+        .delete-character-button {
+            background: #ffe7e7 !important;
+            color: #a51d35;
         }
 
         #access-notice {
@@ -265,6 +306,14 @@
 
             .panel {
                 padding: 16px;
+            }
+
+            .form-buttons {
+                flex-direction: column;
+            }
+
+            .cancel-edit-button {
+                width: 100%;
             }
         }
     </style>
@@ -320,10 +369,12 @@
         style="display:none;"
     >
 
-        <!-- THÊM NHÂN VẬT -->
+        <!-- THÊM / SỬA NHÂN VẬT -->
         <section class="panel">
 
-            <h2>➕ Thêm nhân vật</h2>
+            <h2 id="character-form-title">
+                ➕ Thêm nhân vật
+            </h2>
 
             <form id="character-form">
 
@@ -358,18 +409,18 @@
                     </div>
 
                     <!-- ĐỊA CHỈ -->
-<div class="form-group">
-    <label for="character-address">
-        Địa chỉ đồ
-    </label>
+                    <div class="form-group">
+                        <label for="character-address">
+                            Địa chỉ đồ
+                        </label>
 
-    <input
-        type="text"
-        id="character-address"
-        placeholder="Ví dụ: Quận 1, TP.HCM"
-        required
-    >
-</div>
+                        <input
+                            type="text"
+                            id="character-address"
+                            placeholder="Ví dụ: Quận 1, TP.HCM"
+                            required
+                        >
+                    </div>
 
                     <!-- ẢNH -->
                     <div class="form-group">
@@ -381,8 +432,13 @@
                             type="file"
                             id="character-image"
                             accept="image/*"
-                            required
                         >
+
+                        <small id="current-image-note"
+                               class="current-image-note">
+                            Đang sử dụng ảnh hiện tại.
+                            Chọn ảnh mới nếu muốn thay ảnh.
+                        </small>
                     </div>
 
                     <!-- MÔ TẢ -->
@@ -449,12 +505,25 @@
 
                 </div>
 
-                <button
-                    type="submit"
-                    class="submit-button"
-                >
-                    Upload ảnh & lưu nhân vật
-                </button>
+                <div class="form-buttons">
+
+                    <button
+                        type="submit"
+                        id="submit-character-button"
+                        class="submit-button"
+                    >
+                        Upload ảnh & lưu nhân vật
+                    </button>
+
+                    <button
+                        type="button"
+                        id="cancel-edit-button"
+                        class="cancel-edit-button"
+                    >
+                        Hủy sửa
+                    </button>
+
+                </div>
 
             </form>
 
