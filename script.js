@@ -14,9 +14,16 @@ const supabaseClient =
         SUPABASE_PUBLISHABLE_KEY
     );
 
+
+/* =========================================
+   GLOBAL STATE
+========================================= */
+
 let currentUser = null;
 let currentProfile = null;
+
 let authMode = "login";
+
 let pendingBookingDay = null;
 
 
@@ -29,8 +36,14 @@ function openAuthModal(message = "") {
     const modal =
         document.getElementById("auth-modal");
 
-    document.getElementById("auth-message")
-        .textContent = message;
+    if (!modal) return;
+
+    const messageElement =
+        document.getElementById("auth-message");
+
+    if (messageElement) {
+        messageElement.textContent = message;
+    }
 
     modal.classList.remove("hidden");
 
@@ -38,9 +51,12 @@ function openAuthModal(message = "") {
 
     setTimeout(() => {
 
-        document
-            .getElementById("auth-email")
-            .focus();
+        const emailInput =
+            document.getElementById("auth-email");
+
+        if (emailInput) {
+            emailInput.focus();
+        }
 
     }, 50);
 }
@@ -48,10 +64,19 @@ function openAuthModal(message = "") {
 
 function closeAuthModal() {
 
-    document
-        .getElementById("auth-modal")
-        .classList.add("hidden");
+    const modal =
+        document.getElementById("auth-modal");
 
+    if (!modal) return;
+
+    modal.classList.add("hidden");
+
+    const message =
+        document.getElementById("auth-message");
+
+    if (message) {
+        message.textContent = "";
+    }
 }
 
 
@@ -73,45 +98,65 @@ function setAuthMode(mode) {
         mode === "register";
 
 
-    document
-        .getElementById("auth-title")
-        .textContent =
-        register
-            ? "Tạo tài khoản"
-            : "Đăng nhập";
+    const title =
+        document.getElementById("auth-title");
+
+    const submit =
+        document.getElementById("auth-submit");
+
+    const nameLabel =
+        document.getElementById("auth-name-label");
+
+    const switchText =
+        document.getElementById("auth-switch-text");
+
+    const switchButton =
+        document.getElementById("auth-switch");
 
 
-    document
-        .getElementById("auth-submit")
-        .textContent =
-        register
-            ? "Đăng ký"
-            : "Đăng nhập";
+    if (title) {
+
+        title.textContent =
+            register
+                ? "Tạo tài khoản"
+                : "Đăng nhập";
+    }
 
 
-    document
-        .getElementById("auth-name-label")
-        .classList
-        .toggle(
+    if (submit) {
+
+        submit.textContent =
+            register
+                ? "Đăng ký"
+                : "Đăng nhập";
+    }
+
+
+    if (nameLabel) {
+
+        nameLabel.classList.toggle(
             "hidden",
             !register
         );
+    }
 
 
-    document
-        .getElementById("auth-switch-text")
-        .textContent =
-        register
-            ? "Đã có tài khoản?"
-            : "Chưa có tài khoản?";
+    if (switchText) {
+
+        switchText.textContent =
+            register
+                ? "Đã có tài khoản?"
+                : "Chưa có tài khoản?";
+    }
 
 
-    document
-        .getElementById("auth-switch")
-        .textContent =
-        register
-            ? "Đăng nhập"
-            : "Đăng ký";
+    if (switchButton) {
+
+        switchButton.textContent =
+            register
+                ? "Đăng nhập"
+                : "Đăng ký";
+    }
 }
 
 
@@ -124,35 +169,72 @@ async function handleAuthSubmit(event) {
     event.preventDefault();
 
 
-    const email =
-        document
-            .getElementById("auth-email")
-            .value
-            .trim();
+    const emailInput =
+        document.getElementById("auth-email");
 
+    const passwordInput =
+        document.getElementById("auth-password");
 
-    const password =
-        document
-            .getElementById("auth-password")
-            .value;
-
-
-    const name =
-        document
-            .getElementById("auth-name")
-            .value
-            .trim();
-
+    const nameInput =
+        document.getElementById("auth-name");
 
     const submitButton =
-        document
-            .getElementById("auth-submit");
+        document.getElementById("auth-submit");
 
 
-    submitButton.disabled = true;
+    const email =
+        emailInput?.value.trim() || "";
 
-    submitButton.textContent =
-        "Đang xử lý...";
+    const password =
+        passwordInput?.value || "";
+
+    const name =
+        nameInput?.value.trim() || "";
+
+
+    if (!email || !password) {
+
+        showAuthError(
+            "Vui lòng nhập email và mật khẩu."
+        );
+
+        return;
+    }
+
+
+    if (
+        authMode === "register" &&
+        !name
+    ) {
+
+        showAuthError(
+            "Vui lòng nhập họ và tên."
+        );
+
+        return;
+    }
+
+
+    if (password.length < 6) {
+
+        showAuthError(
+            "Mật khẩu phải có ít nhất 6 ký tự."
+        );
+
+        return;
+    }
+
+
+    if (submitButton) {
+
+        submitButton.disabled = true;
+
+        submitButton.textContent =
+            "Đang xử lý...";
+    }
+
+
+    clearAuthError();
 
 
     try {
@@ -163,7 +245,10 @@ async function handleAuthSubmit(event) {
 
         if (authMode === "register") {
 
-            const { data, error } =
+            const {
+                data,
+                error
+            } =
                 await supabaseClient.auth.signUp({
 
                     email,
@@ -181,26 +266,36 @@ async function handleAuthSubmit(event) {
                 });
 
 
-            if (error)
+            if (error) {
                 throw error;
+            }
 
 
-            if (data.session) {
+            /*
+             * Supabase có thể yêu cầu
+             * xác nhận email trước khi đăng nhập.
+             */
+
+            if (data?.session) {
+
+                await loadCurrentProfile(
+                    data.user
+                );
 
                 showToast(
                     "Tạo tài khoản thành công!"
                 );
 
+                closeAuthModal();
+
             } else {
 
                 showToast(
-                    "Đăng ký thành công. Kiểm tra email nếu Supabase yêu cầu xác nhận."
+                    "Đăng ký thành công. Hãy kiểm tra email để xác nhận tài khoản."
                 );
 
+                closeAuthModal();
             }
-
-
-            closeAuthModal();
 
         }
 
@@ -211,9 +306,11 @@ async function handleAuthSubmit(event) {
 
         else {
 
-            const { error } =
-                await supabaseClient
-                    .auth
+            const {
+                data,
+                error
+            } =
+                await supabaseClient.auth
                     .signInWithPassword({
 
                         email,
@@ -223,8 +320,14 @@ async function handleAuthSubmit(event) {
                     });
 
 
-            if (error)
+            if (error) {
                 throw error;
+            }
+
+
+            await loadCurrentProfile(
+                data.user
+            );
 
 
             closeAuthModal();
@@ -236,11 +339,10 @@ async function handleAuthSubmit(event) {
 
 
             /*
-               Nếu người dùng bấm vào
-               một ngày thuê trước khi
-               đăng nhập, sau khi đăng nhập
-               sẽ quay lại cửa sổ thuê.
-            */
+             * Nếu người dùng đã chọn
+             * ngày thuê trước khi login,
+             * mở lại form thuê.
+             */
 
             if (
                 pendingBookingDay !== null
@@ -258,7 +360,7 @@ async function handleAuthSubmit(event) {
 
                     openBooking(day);
 
-                }, 150);
+                }, 200);
 
             }
 
@@ -273,80 +375,120 @@ async function handleAuthSubmit(event) {
         );
 
 
-        document
-            .getElementById("auth-message")
-            .textContent =
+        showAuthError(
             translateAuthError(
-                error.message
-            );
+                error?.message
+            )
+        );
 
 
     } finally {
 
-        submitButton.disabled = false;
+        if (submitButton) {
 
+            submitButton.disabled =
+                false;
 
-        submitButton.textContent =
-            authMode === "register"
-                ? "Đăng ký"
-                : "Đăng nhập";
-
+            submitButton.textContent =
+                authMode === "register"
+                    ? "Đăng ký"
+                    : "Đăng nhập";
+        }
     }
-
 }
 
 
 /* =========================================
-   AUTH ERROR TRANSLATION
+   AUTH ERROR
 ========================================= */
+
+function showAuthError(message) {
+
+    const element =
+        document.getElementById(
+            "auth-message"
+        );
+
+    if (element) {
+
+        element.textContent =
+            message || "Có lỗi xảy ra.";
+
+    }
+}
+
+
+function clearAuthError() {
+
+    const element =
+        document.getElementById(
+            "auth-message"
+        );
+
+    if (element) {
+        element.textContent = "";
+    }
+}
+
 
 function translateAuthError(message) {
 
-    if (!message)
+    if (!message) {
         return "Có lỗi xảy ra.";
+    }
+
+
+    const text =
+        message.toLowerCase();
 
 
     if (
-        message.includes(
-            "Invalid login credentials"
+        text.includes(
+            "invalid login credentials"
         )
     ) {
 
         return "Email hoặc mật khẩu không đúng.";
-
     }
 
 
     if (
-        message.includes(
-            "User already registered"
+        text.includes(
+            "user already registered"
         )
     ) {
 
         return "Email này đã được đăng ký.";
-
     }
 
 
     if (
-        message.includes(
-            "Password should be at least"
+        text.includes(
+            "password should be at least"
         )
     ) {
 
         return "Mật khẩu phải có ít nhất 6 ký tự.";
-
     }
 
 
     if (
-        message.includes(
-            "Email not confirmed"
+        text.includes(
+            "email not confirmed"
         )
     ) {
 
         return "Email chưa được xác nhận.";
+    }
 
+
+    if (
+        text.includes(
+            "email rate limit"
+        )
+    ) {
+
+        return "Bạn thao tác quá nhanh. Vui lòng thử lại sau.";
     }
 
 
@@ -360,27 +502,46 @@ function translateAuthError(message) {
 
 async function signOutUser() {
 
-    const { error } =
-        await supabaseClient
-            .auth
-            .signOut();
+    try {
+
+        const {
+            error
+        } =
+            await supabaseClient.auth.signOut();
 
 
-    if (error) {
+        if (error) {
+            throw error;
+        }
 
-        console.error(error);
+
+        currentUser = null;
+
+        currentProfile = null;
+
+        pendingBookingDay = null;
+
+
+        updateAuthUI();
+
+
+        showToast(
+            "Đã đăng xuất."
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "LOGOUT ERROR:",
+            error
+        );
+
 
         showToast(
             "Không thể đăng xuất."
         );
-
-        return;
     }
-
-
-    showToast(
-        "Đã đăng xuất."
-    );
 }
 
 
@@ -390,9 +551,11 @@ async function signOutUser() {
 
 async function loadCurrentProfile(user) {
 
-    currentUser = user;
+    currentUser =
+        user || null;
 
-    currentProfile = null;
+    currentProfile =
+        null;
 
 
     if (!user) {
@@ -403,30 +566,44 @@ async function loadCurrentProfile(user) {
     }
 
 
-    const { data, error } =
-        await supabaseClient
-            .from("profiles")
-            .select(
-                "id, full_name, phone, avatar_url, role"
-            )
-            .eq(
-                "id",
-                user.id
-            )
-            .maybeSingle();
+    try {
+
+        const {
+            data,
+            error
+        } =
+            await supabaseClient
+                .from("profiles")
+                .select(
+                    "id, full_name, phone, avatar_url, role"
+                )
+                .eq(
+                    "id",
+                    user.id
+                )
+                .maybeSingle();
 
 
-    if (error) {
+        if (error) {
+
+            console.error(
+                "PROFILE ERROR:",
+                error
+            );
+
+        } else {
+
+            currentProfile =
+                data || null;
+        }
+
+
+    } catch (error) {
 
         console.error(
-            "PROFILE ERROR:",
+            "PROFILE LOAD ERROR:",
             error
         );
-
-    } else {
-
-        currentProfile = data;
-
     }
 
 
@@ -452,20 +629,27 @@ function updateAuthUI() {
         );
 
 
-    const name =
+    const nameElement =
         document.getElementById(
             "auth-user-name"
         );
 
 
-    const role =
+    const roleElement =
         document.getElementById(
             "auth-user-role"
         );
 
 
-    if (!button || !userBox)
+    const adminButton =
+        document.getElementById(
+            "admin-button"
+        );
+
+
+    if (!button || !userBox) {
         return;
+    }
 
 
     /* =========================
@@ -479,6 +663,14 @@ function updateAuthUI() {
 
         userBox.style.display =
             "none";
+
+
+        if (adminButton) {
+
+            adminButton.style.display =
+                "none";
+        }
+
 
         return;
     }
@@ -495,30 +687,38 @@ function updateAuthUI() {
         "flex";
 
 
-    name.textContent =
-        currentProfile?.full_name ||
-        currentUser.email ||
-        "Tài khoản";
+    if (nameElement) {
+
+        nameElement.textContent =
+            currentProfile?.full_name ||
+            currentUser.email ||
+            "Tài khoản";
+    }
 
 
     const isAdmin =
         currentProfile?.role === "admin";
 
 
-    role.textContent =
-        isAdmin
-            ? "ADMIN"
-            : "KHÁCH";
+    if (roleElement) {
+
+        roleElement.textContent =
+            isAdmin
+                ? "ADMIN"
+                : "KHÁCH";
+
+        roleElement.style.display =
+            "inline-block";
+    }
 
 
-    role.style.display =
-        "inline-block";
-const adminButton =
-    document.getElementById("admin-button");
+    if (adminButton) {
 
-if (adminButton) {
-    adminButton.style.display =
-        isAdmin ? "inline-block" : "none";
+        adminButton.style.display =
+            isAdmin
+                ? "inline-block"
+                : "none";
+    }
 }
 
 
@@ -530,6 +730,11 @@ supabaseClient
     .auth
     .onAuthStateChange(
         (_event, session) => {
+
+            /*
+             * Không gọi quá nhiều thao tác
+             * Supabase ngay bên trong callback.
+             */
 
             setTimeout(() => {
 
@@ -549,26 +754,40 @@ supabaseClient
 
 async function initAuth() {
 
-    const { data, error } =
-        await supabaseClient
-            .auth
-            .getSession();
+    try {
+
+        const {
+            data,
+            error
+        } =
+            await supabaseClient.auth
+                .getSession();
 
 
-    if (error) {
+        if (error) {
+            throw error;
+        }
+
+
+        await loadCurrentProfile(
+            data?.session?.user || null
+        );
+
+
+    } catch (error) {
 
         console.error(
             "SESSION ERROR:",
             error
         );
 
-        return;
+
+        currentUser = null;
+
+        currentProfile = null;
+
+        updateAuthUI();
     }
-
-
-    await loadCurrentProfile(
-        data.session?.user || null
-    );
 }
 
 
@@ -594,31 +813,19 @@ const characters = [
             "https://placehold.co/700x900/e8dce5/332b33?text=HU+TAO",
 
         items: [
-
             "Trang phục Hu Tao",
-
             "Tóc giả",
-
             "Phụ kiện",
-
             "Các chi tiết đi kèm"
-
         ],
 
         rentedDays: [
-
             5,
-
             12,
-
             18,
-
             19,
-
             25
-
         ]
-
     },
 
 
@@ -638,29 +845,18 @@ const characters = [
             "https://placehold.co/700x900/dce7f0/28313b?text=FURINA",
 
         items: [
-
             "Trang phục Furina",
-
             "Tóc giả",
-
             "Phụ kiện",
-
             "Trang sức"
-
         ],
 
         rentedDays: [
-
             3,
-
             4,
-
             15,
-
             22
-
         ]
-
     },
 
 
@@ -680,27 +876,17 @@ const characters = [
             "https://placehold.co/700x900/dcefeb/263634?text=MIKU",
 
         items: [
-
             "Trang phục",
-
             "Tóc giả xanh",
-
             "Phụ kiện",
-
             "Cà vạt"
-
         ],
 
         rentedDays: [
-
             7,
-
             8,
-
             20
-
         ]
-
     },
 
 
@@ -720,29 +906,18 @@ const characters = [
             "https://placehold.co/700x900/e9dce1/352c30?text=KAFKA",
 
         items: [
-
             "Trang phục Kafka",
-
             "Tóc giả",
-
             "Kính",
-
             "Phụ kiện"
-
         ],
 
         rentedDays: [
-
             2,
-
             10,
-
             11,
-
             27
-
         ]
-
     },
 
 
@@ -762,29 +937,18 @@ const characters = [
             "https://placehold.co/700x900/e2dff0/302d3d?text=RAIDEN",
 
         items: [
-
             "Trang phục",
-
             "Tóc giả",
-
             "Phụ kiện",
-
             "Đạo cụ"
-
         ],
 
         rentedDays: [
-
             6,
-
             14,
-
             21,
-
             28
-
         ]
-
     },
 
 
@@ -804,27 +968,17 @@ const characters = [
             "https://placehold.co/700x900/f0e2cf/3b3328?text=NAVIA",
 
         items: [
-
             "Trang phục Navia",
-
             "Tóc giả",
-
             "Mũ",
-
             "Phụ kiện"
-
         ],
 
         rentedDays: [
-
             9,
-
             16,
-
             23
-
         ]
-
     }
 
 ];
@@ -836,9 +990,23 @@ const characters = [
 
 let selectedCharacter = null;
 
-let currentMonth = 8;
 
-let currentYear = 2026;
+/*
+ * Tự động mở tháng hiện tại.
+ *
+ * JavaScript:
+ * January = 0
+ * September = 8
+ */
+
+const now =
+    new Date();
+
+let currentMonth =
+    now.getMonth();
+
+let currentYear =
+    now.getFullYear();
 
 
 /* =========================================
@@ -877,11 +1045,20 @@ function showCharacters(
     list = characters
 ) {
 
-    characterList.innerHTML = "";
+    if (!characterList) {
+        return;
+    }
 
 
-    characterCount.textContent =
-        `${list.length} nhân vật`;
+    characterList.innerHTML =
+        "";
+
+
+    if (characterCount) {
+
+        characterCount.textContent =
+            `${list.length} nhân vật`;
+    }
 
 
     if (list.length === 0) {
@@ -903,68 +1080,73 @@ function showCharacters(
     }
 
 
-    list.forEach(character => {
+    list.forEach(
+        character => {
 
-        const card =
-            document.createElement(
-                "article"
+            const card =
+                document.createElement(
+                    "article"
+                );
+
+
+            card.className =
+                "character-card";
+
+
+            card.innerHTML = `
+
+                <img
+                    class="character-card-image"
+                    src="${character.image}"
+                    alt="${character.name}"
+                    loading="lazy"
+                >
+
+                <div
+                    class="character-card-info"
+                >
+
+                    <div
+                        class="character-card-category"
+                    >
+                        ${character.category}
+                    </div>
+
+                    <h3
+                        class="character-card-name"
+                    >
+                        ${character.name}
+                    </h3>
+
+                    <div
+                        class="character-card-price"
+                    >
+                        ${character.price}
+                    </div>
+
+                </div>
+
+            `;
+
+
+            card.addEventListener(
+                "click",
+                () => {
+
+                    openCharacter(
+                        character.id
+                    );
+
+                }
             );
 
 
-        card.className =
-            "character-card";
-
-
-        card.innerHTML = `
-
-            <img
-                class="character-card-image"
-                src="${character.image}"
-                alt="${character.name}"
-            >
-
-            <div
-                class="character-card-info"
-            >
-
-                <div
-                    class="character-card-category"
-                >
-                    ${character.category}
-                </div>
-
-                <h3
-                    class="character-card-name"
-                >
-                    ${character.name}
-                </h3>
-
-                <div
-                    class="character-card-price"
-                >
-                    ${character.price}
-                </div>
-
-            </div>
-
-        `;
-
-
-        card.onclick = () => {
-
-            openCharacter(
-                character.id
+            characterList.appendChild(
+                card
             );
 
-        };
-
-
-        characterList.appendChild(
-            card
-        );
-
-    });
-
+        }
+    );
 }
 
 
@@ -980,58 +1162,97 @@ function openCharacter(id) {
         );
 
 
-    if (!character)
+    if (!character) {
         return;
+    }
 
 
     selectedCharacter =
         character;
 
 
-    homePage.classList.add(
-        "hidden"
-    );
+    if (homePage) {
+
+        homePage.classList.add(
+            "hidden"
+        );
+    }
 
 
-    characterPage.classList.remove(
-        "hidden"
-    );
+    if (characterPage) {
+
+        characterPage.classList.remove(
+            "hidden"
+        );
+    }
 
 
-    document
-        .getElementById("detail-image")
-        .src =
-        character.image;
+    const image =
+        document.getElementById(
+            "detail-image"
+        );
 
 
-    document
-        .getElementById("detail-image")
-        .alt =
-        character.name;
+    if (image) {
+
+        image.src =
+            character.image;
+
+        image.alt =
+            character.name;
+    }
 
 
-    document
-        .getElementById("detail-category")
-        .textContent =
-        character.category;
+    const category =
+        document.getElementById(
+            "detail-category"
+        );
 
 
-    document
-        .getElementById("detail-name")
-        .textContent =
-        character.name;
+    if (category) {
+
+        category.textContent =
+            character.category;
+    }
 
 
-    document
-        .getElementById("detail-description")
-        .textContent =
-        character.description;
+    const name =
+        document.getElementById(
+            "detail-name"
+        );
 
 
-    document
-        .getElementById("detail-price")
-        .textContent =
-        character.price;
+    if (name) {
+
+        name.textContent =
+            character.name;
+    }
+
+
+    const description =
+        document.getElementById(
+            "detail-description"
+        );
+
+
+    if (description) {
+
+        description.textContent =
+            character.description;
+    }
+
+
+    const price =
+        document.getElementById(
+            "detail-price"
+        );
+
+
+    if (price) {
+
+        price.textContent =
+            character.price;
+    }
 
 
     const items =
@@ -1040,38 +1261,31 @@ function openCharacter(id) {
         );
 
 
-    items.innerHTML = "";
+    if (items) {
+
+        items.innerHTML = "";
 
 
-    character.items.forEach(
-        item => {
+        character.items.forEach(
+            item => {
 
-            const li =
-                document.createElement(
-                    "li"
+                const li =
+                    document.createElement(
+                        "li"
+                    );
+
+
+                li.textContent =
+                    item;
+
+
+                items.appendChild(
+                    li
                 );
 
-
-            li.textContent =
-                item;
-
-
-            items.appendChild(
-                li
-            );
-
-        }
-    );
-
-
-    /*
-       Hiện tại vẫn mở mặc định
-       tháng 9/2026.
-    */
-
-    currentMonth = 8;
-
-    currentYear = 2026;
+            }
+        );
+    }
 
 
     renderCalendar();
@@ -1084,7 +1298,6 @@ function openCharacter(id) {
         behavior: "smooth"
 
     });
-
 }
 
 
@@ -1094,14 +1307,20 @@ function openCharacter(id) {
 
 function goHome() {
 
-    characterPage.classList.add(
-        "hidden"
-    );
+    if (characterPage) {
+
+        characterPage.classList.add(
+            "hidden"
+        );
+    }
 
 
-    homePage.classList.remove(
-        "hidden"
-    );
+    if (homePage) {
+
+        homePage.classList.remove(
+            "hidden"
+        );
+    }
 
 
     window.scrollTo({
@@ -1111,7 +1330,6 @@ function goHome() {
         behavior: "smooth"
 
     });
-
 }
 
 
@@ -1121,35 +1339,44 @@ function goHome() {
 
 function searchCharacters() {
 
+    const input =
+        document.getElementById(
+            "search-input"
+        );
+
+
+    if (!input) {
+        return;
+    }
+
+
     const keyword =
-        document
-            .getElementById(
-                "search-input"
-            )
-            .value
+        input.value
             .toLowerCase()
             .trim();
 
 
     const result =
         characters.filter(
-            character =>
+            character => {
 
-                character.name
-                    .toLowerCase()
-                    .includes(keyword)
+                return (
+                    character.name
+                        .toLowerCase()
+                        .includes(keyword)
 
-                ||
+                    ||
 
-                character.category
-                    .toLowerCase()
-                    .includes(keyword)
+                    character.category
+                        .toLowerCase()
+                        .includes(keyword)
+                );
 
+            }
         );
 
 
     showCharacters(result);
-
 }
 
 
@@ -1159,8 +1386,9 @@ function searchCharacters() {
 
 function renderCalendar() {
 
-    if (!selectedCharacter)
+    if (!selectedCharacter) {
         return;
+    }
 
 
     const calendar =
@@ -1175,30 +1403,24 @@ function renderCalendar() {
         );
 
 
+    if (!calendar || !monthTitle) {
+        return;
+    }
+
+
     const monthNames = [
 
         "Tháng 1",
-
         "Tháng 2",
-
         "Tháng 3",
-
         "Tháng 4",
-
         "Tháng 5",
-
         "Tháng 6",
-
         "Tháng 7",
-
         "Tháng 8",
-
         "Tháng 9",
-
         "Tháng 10",
-
         "Tháng 11",
-
         "Tháng 12"
 
     ];
@@ -1208,23 +1430,18 @@ function renderCalendar() {
         `${monthNames[currentMonth]} ${currentYear}`;
 
 
-    calendar.innerHTML = "";
+    calendar.innerHTML =
+        "";
 
 
     const weekdays = [
 
         "T2",
-
         "T3",
-
         "T4",
-
         "T5",
-
         "T6",
-
         "T7",
-
         "CN"
 
     ];
@@ -1256,22 +1473,20 @@ function renderCalendar() {
 
 
     /*
-       JavaScript:
-       Sunday = 0
-
-       Chuyển sang:
-       Monday = 0
-    */
+     * JavaScript:
+     *
+     * Sunday = 0
+     *
+     * Chuyển thành:
+     *
+     * Monday = 0
+     */
 
     const firstDay =
         new Date(
-
             currentYear,
-
             currentMonth,
-
             1
-
         ).getDay();
 
 
@@ -1282,13 +1497,9 @@ function renderCalendar() {
 
 
     for (
-
         let i = 0;
-
         i < mondayIndex;
-
         i++
-
     ) {
 
         const empty =
@@ -1304,30 +1515,21 @@ function renderCalendar() {
         calendar.appendChild(
             empty
         );
-
     }
 
 
     const daysInMonth =
         new Date(
-
             currentYear,
-
             currentMonth + 1,
-
             0
-
         ).getDate();
 
 
     for (
-
         let day = 1;
-
         day <= daysInMonth;
-
         day++
-
     ) {
 
         const element =
@@ -1337,8 +1539,7 @@ function renderCalendar() {
 
 
         const rented =
-            selectedCharacter
-                .rentedDays
+            selectedCharacter.rentedDays
                 .includes(day);
 
 
@@ -1371,13 +1572,21 @@ function renderCalendar() {
         `;
 
 
+        /*
+         * Chỉ cho click ngày
+         * còn trống.
+         */
+
         if (!rented) {
 
-            element.onclick = () => {
+            element.addEventListener(
+                "click",
+                () => {
 
-                openBooking(day);
+                    openBooking(day);
 
-            };
+                }
+            );
 
         }
 
@@ -1385,9 +1594,7 @@ function renderCalendar() {
         calendar.appendChild(
             element
         );
-
     }
-
 }
 
 
@@ -1405,12 +1612,10 @@ function previousMonth() {
         currentMonth = 11;
 
         currentYear--;
-
     }
 
 
     renderCalendar();
-
 }
 
 
@@ -1424,12 +1629,10 @@ function nextMonth() {
         currentMonth = 0;
 
         currentYear++;
-
     }
 
 
     renderCalendar();
-
 }
 
 
@@ -1439,14 +1642,25 @@ function nextMonth() {
 
 function openBooking(day) {
 
+    if (!selectedCharacter) {
+
+        showToast(
+            "Vui lòng chọn nhân vật trước."
+        );
+
+        return;
+    }
+
+
     /*
-       Nếu chưa đăng nhập,
-       yêu cầu đăng nhập trước.
-    */
+     * Nếu chưa đăng nhập,
+     * lưu lại ngày người dùng chọn.
+     */
 
     if (!currentUser) {
 
-        pendingBookingDay = day;
+        pendingBookingDay =
+            day;
 
 
         openAuthModal(
@@ -1464,20 +1678,35 @@ function openBooking(day) {
         );
 
 
-    document
-        .getElementById(
+    if (!modal) {
+        return;
+    }
+
+
+    const title =
+        document.getElementById(
             "booking-title"
-        )
-        .textContent =
-        `Thuê ${selectedCharacter.name}`;
+        );
 
 
-    document
-        .getElementById(
+    if (title) {
+
+        title.textContent =
+            `Thuê ${selectedCharacter.name}`;
+    }
+
+
+    const bookingDate =
+        document.getElementById(
             "booking-date"
-        )
-        .textContent =
-        `Ngày ${day}/${currentMonth + 1}/${currentYear}`;
+        );
+
+
+    if (bookingDate) {
+
+        bookingDate.textContent =
+            `Ngày ${day}/${currentMonth + 1}/${currentYear}`;
+    }
 
 
     modal.classList.remove(
@@ -1485,30 +1714,39 @@ function openBooking(day) {
     );
 
 
-    document
-        .getElementById(
+    const customerName =
+        document.getElementById(
             "customer-name"
-        )
-        .value =
-        currentProfile?.full_name ||
-        "";
+        );
 
 
-    document
-        .getElementById(
+    const customerPhone =
+        document.getElementById(
             "customer-phone"
-        )
-        .value =
-        currentProfile?.phone ||
-        "";
+        );
 
 
-    document
-        .getElementById(
-            "customer-name"
-        )
-        .focus();
+    if (customerName) {
 
+        customerName.value =
+            currentProfile?.full_name || "";
+    }
+
+
+    if (customerPhone) {
+
+        customerPhone.value =
+            currentProfile?.phone || "";
+    }
+
+
+    setTimeout(() => {
+
+        if (customerName) {
+            customerName.focus();
+        }
+
+    }, 100);
 }
 
 
@@ -1518,14 +1756,20 @@ function openBooking(day) {
 
 function closeBooking() {
 
-    document
-        .getElementById(
+    const modal =
+        document.getElementById(
             "booking-modal"
-        )
-        .classList.add(
-            "hidden"
         );
 
+
+    if (!modal) {
+        return;
+    }
+
+
+    modal.classList.add(
+        "hidden"
+    );
 }
 
 
@@ -1556,13 +1800,23 @@ function submitBooking(event) {
     }
 
 
+    if (!selectedCharacter) {
+
+        showToast(
+            "Không xác định được nhân vật."
+        );
+
+        return;
+    }
+
+
     const name =
         document
             .getElementById(
                 "customer-name"
             )
-            .value
-            .trim();
+            ?.value
+            .trim() || "";
 
 
     const phone =
@@ -1570,8 +1824,8 @@ function submitBooking(event) {
             .getElementById(
                 "customer-phone"
             )
-            .value
-            .trim();
+            ?.value
+            .trim() || "";
 
 
     const note =
@@ -1579,56 +1833,116 @@ function submitBooking(event) {
             .getElementById(
                 "customer-note"
             )
-            .value
-            .trim();
+            ?.value
+            .trim() || "";
+
+
+    if (!name) {
+
+        showToast(
+            "Vui lòng nhập họ và tên."
+        );
+
+        return;
+    }
+
+
+    if (!phone) {
+
+        showToast(
+            "Vui lòng nhập số điện thoại."
+        );
+
+        return;
+    }
+
+
+    /*
+     * Tạo dữ liệu đơn thuê.
+     *
+     * Hiện tại chưa INSERT vào Supabase
+     * vì cần biết chính xác schema bảng rentals.
+     */
+
+    const bookingData = {
+
+        user_id:
+            currentUser.id,
+
+        character_id:
+            selectedCharacter.id,
+
+        character_name:
+            selectedCharacter.name,
+
+        rental_date:
+            `${currentYear}-${String(
+                currentMonth + 1
+            ).padStart(2, "0")}-${String(
+                pendingBookingDay || getCurrentBookingDay()
+            ).padStart(2, "0")}`,
+
+        customer_name:
+            name,
+
+        customer_phone:
+            phone,
+
+        note:
+            note
+
+    };
 
 
     console.log(
-
-        "BOOKING PREVIEW:",
-
-        {
-
-            user_id:
-                currentUser.id,
-
-            character:
-                selectedCharacter.name,
-
-            name,
-
-            phone,
-
-            note
-
-        }
-
+        "BOOKING DATA:",
+        bookingData
     );
 
 
     /*
-       BƯỚC HIỆN TẠI:
-
-       Auth đã kết nối Supabase.
-
-       Đơn thuê sẽ được ghi vào
-       bảng rentals sau khi
-       characters cũng được chuyển
-       từ dữ liệu cứng sang Supabase
-       ở bước kế tiếp.
-    */
+     * TODO:
+     *
+     * Khi xác định chính xác cấu trúc
+     * bảng rentals trong Supabase,
+     * thay phần trên bằng:
+     *
+     * await supabaseClient
+     *     .from("rentals")
+     *     .insert([bookingData]);
+     */
 
 
     closeBooking();
 
 
     showToast(
-        "Đã nhận thông tin. Bước tiếp theo sẽ lưu đơn vào Supabase."
+        "Đã nhận thông tin yêu cầu thuê!"
     );
 
 
-    event.target.reset();
+    const form =
+        event.target;
 
+
+    if (form) {
+        form.reset();
+    }
+
+
+    pendingBookingDay =
+        null;
+}
+
+
+/*
+ * Khi submit trực tiếp mà không còn
+ * pendingBookingDay, lấy ngày hiện tại.
+ */
+
+function getCurrentBookingDay() {
+
+    return new Date().getDate();
 }
 
 
@@ -1644,6 +1958,11 @@ function showToast(message) {
         );
 
 
+    if (!toast) {
+        return;
+    }
+
+
     toast.textContent =
         message;
 
@@ -1653,14 +1972,19 @@ function showToast(message) {
     );
 
 
-    setTimeout(() => {
+    clearTimeout(
+        showToast.timeout
+    );
 
-        toast.classList.remove(
-            "show"
-        );
 
-    }, 2500);
+    showToast.timeout =
+        setTimeout(() => {
 
+            toast.classList.remove(
+                "show"
+            );
+
+        }, 2500);
 }
 
 
@@ -1675,14 +1999,23 @@ function focusSearch() {
 
     setTimeout(() => {
 
-        document
-            .getElementById(
+        const searchInput =
+            document.getElementById(
                 "search-input"
-            )
-            .focus();
+            );
 
-    }, 100);
 
+        if (searchInput) {
+
+            searchInput.focus();
+
+            searchInput.scrollIntoView({
+                behavior: "smooth",
+                block: "center"
+            });
+        }
+
+    }, 150);
 }
 
 
@@ -1696,13 +2029,17 @@ document
         "click",
         (event) => {
 
+            /*
+             * Chỉ đóng khi click vào
+             * vùng modal bên ngoài.
+             */
+
             if (
                 event.target.id ===
                 "auth-modal"
             ) {
 
                 closeAuthModal();
-
             }
 
         }
@@ -1710,12 +2047,99 @@ document
 
 
 /* =========================================
+   ESC KEY
+========================================= */
+
+document.addEventListener(
+    "keydown",
+    (event) => {
+
+        if (event.key !== "Escape") {
+            return;
+        }
+
+
+        const authModal =
+            document.getElementById(
+                "auth-modal"
+            );
+
+
+        const bookingModal =
+            document.getElementById(
+                "booking-modal"
+            );
+
+
+        if (
+            authModal &&
+            !authModal.classList.contains(
+                "hidden"
+            )
+        ) {
+
+            closeAuthModal();
+
+            return;
+        }
+
+
+        if (
+            bookingModal &&
+            !bookingModal.classList.contains(
+                "hidden"
+            )
+        ) {
+
+            closeBooking();
+        }
+
+    }
+);
+
+
+/* =========================================
+   ADMIN
+========================================= */
+
+function openAdminPage() {
+
+    /*
+     * Kiểm tra thêm ở phía client
+     * trước khi chuyển trang.
+     */
+
+    if (
+        !currentUser ||
+        currentProfile?.role !== "admin"
+    ) {
+
+        showToast(
+            "Bạn không có quyền truy cập."
+        );
+
+        return;
+    }
+
+
+    window.location.href =
+        "admin.html";
+}
+
+
+/* =========================================
    INITIALIZE
 ========================================= */
 
-showCharacters();
+document.addEventListener(
+    "DOMContentLoaded",
+    async () => {
 
-initAuth();
-   function openAdminPage() {
-    window.location.href = "admin.html";
-}
+        showCharacters();
+
+        updateAuthUI();
+
+        await initAuth();
+
+    }
+);
