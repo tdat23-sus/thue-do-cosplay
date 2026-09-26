@@ -33,11 +33,17 @@ let characters = [];
 ========================================= */
 
 let selectedBookingDay = null;
-
 let selectedCharacter = null;
 
 let currentMonth = 8;
 let currentYear = 2026;
+
+
+/* =========================================
+   RENTAL CALENDAR STATE
+========================================= */
+
+let rentedDays = new Set();
 
 
 /* =========================================
@@ -49,423 +55,318 @@ const characterList =
         "character-list"
     );
 
-const characterCount =
+const calendar =
     document.getElementById(
-        "character-count"
+        "calendar"
     );
 
-const homePage =
+const calendarTitle =
     document.getElementById(
-        "home-page"
+        "calendar-title"
     );
 
-const characterPage =
+const prevMonthBtn =
     document.getElementById(
-        "character-page"
+        "prev-month"
+    );
+
+const nextMonthBtn =
+    document.getElementById(
+        "next-month"
+    );
+
+const bookingModal =
+    document.getElementById(
+        "booking-modal"
+    );
+
+const bookingDateText =
+    document.getElementById(
+        "booking-date"
+    );
+
+const bookingForm =
+    document.getElementById(
+        "booking-form"
+    );
+
+const closeBookingBtn =
+    document.getElementById(
+        "close-booking"
     );
 
 
 /* =========================================
-   AUTH MODAL
+   HELPERS
 ========================================= */
 
-function openAuthModal(message = "") {
+function escapeHtml(value) {
 
-    const modal =
-        document.getElementById(
-            "auth-modal"
-        );
-
-    if (!modal) return;
-
-    const messageElement =
-        document.getElementById(
-            "auth-message"
-        );
-
-    if (messageElement) {
-        messageElement.textContent =
-            message;
+    if (value === null || value === undefined) {
+        return "";
     }
 
-    modal.classList.remove(
-        "hidden"
-    );
-
-    setAuthMode(authMode);
-
-    setTimeout(() => {
-
-        document
-            .getElementById(
-                "auth-email"
-            )
-            ?.focus();
-
-    }, 50);
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
 
-function closeAuthModal() {
+function formatDate(date) {
 
-    document
-        .getElementById(
-            "auth-modal"
+    const year =
+        date.getFullYear();
+
+    const month =
+        String(
+            date.getMonth() + 1
+        ).padStart(2, "0");
+
+    const day =
+        String(
+            date.getDate()
+        ).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+}
+
+
+function parseDate(dateString) {
+
+    const parts =
+        String(dateString)
+            .split("-")
+            .map(Number);
+
+    if (parts.length !== 3) {
+        return null;
+    }
+
+    return new Date(
+        parts[0],
+        parts[1] - 1,
+        parts[2]
+    );
+}
+
+
+function normalizeDateString(value) {
+
+    if (!value) {
+        return null;
+    }
+
+    const text =
+        String(value)
+            .slice(0, 10);
+
+    if (
+        /^\d{4}-\d{2}-\d{2}$/.test(
+            text
         )
-        ?.classList.add(
-            "hidden"
-        );
+    ) {
+        return text;
+    }
+
+    const date =
+        new Date(value);
+
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
+        return null;
+    }
+
+    return formatDate(date);
 }
 
 
-function toggleAuthMode() {
+function addDays(
+    dateString,
+    amount
+) {
 
-    setAuthMode(
-        authMode === "login"
-            ? "register"
-            : "login"
+    const date =
+        parseDate(dateString);
+
+    if (!date) {
+        return null;
+    }
+
+    date.setDate(
+        date.getDate() + amount
     );
+
+    return formatDate(date);
 }
 
 
-function setAuthMode(mode) {
+function datesBetween(
+    startDate,
+    endDate
+) {
 
-    authMode = mode;
+    const result = [];
 
-    const register =
-        mode === "register";
+    let cursor =
+        parseDate(startDate);
 
+    const end =
+        parseDate(endDate);
 
-    const title =
-        document.getElementById(
-            "auth-title"
-        );
-
-    if (title) {
-        title.textContent =
-            register
-                ? "Tạo tài khoản"
-                : "Đăng nhập";
+    if (!cursor || !end) {
+        return result;
     }
 
+    while (
+        cursor <= end
+    ) {
 
-    const submit =
-        document.getElementById(
-            "auth-submit"
+        result.push(
+            formatDate(cursor)
         );
 
-    if (submit) {
-        submit.textContent =
-            register
-                ? "Đăng ký"
-                : "Đăng nhập";
-    }
-
-
-    const nameLabel =
-        document.getElementById(
-            "auth-name-label"
-        );
-
-    if (nameLabel) {
-        nameLabel.classList.toggle(
-            "hidden",
-            !register
+        cursor.setDate(
+            cursor.getDate() + 1
         );
     }
 
-
-    const switchText =
-        document.getElementById(
-            "auth-switch-text"
-        );
-
-    if (switchText) {
-        switchText.textContent =
-            register
-                ? "Đã có tài khoản?"
-                : "Chưa có tài khoản?";
-    }
-
-
-    const switchButton =
-        document.getElementById(
-            "auth-switch"
-        );
-
-    if (switchButton) {
-        switchButton.textContent =
-            register
-                ? "Đăng nhập"
-                : "Đăng ký";
-    }
+    return result;
 }
 
 
 /* =========================================
-   AUTH SUBMIT
+   AUTH
 ========================================= */
 
-async function handleAuthSubmit(event) {
+async function loadCurrentUser() {
 
-    event.preventDefault();
+    const {
+        data,
+        error
+    } =
+        await supabaseClient
+            .auth
+            .getUser();
 
-
-    const email =
-        document
-            .getElementById(
-                "auth-email"
-            )
-            .value
-            .trim();
-
-
-    const password =
-        document
-            .getElementById(
-                "auth-password"
-            )
-            .value;
-
-
-    const name =
-        document
-            .getElementById(
-                "auth-name"
-            )
-            .value
-            .trim();
-
-
-    const submitButton =
-        document.getElementById(
-            "auth-submit"
-        );
-
-
-    submitButton.disabled = true;
-
-    submitButton.textContent =
-        "Đang xử lý...";
-
-
-    try {
-
-        /* =========================
-           REGISTER
-        ========================= */
-
-        if (
-            authMode ===
-            "register"
-        ) {
-
-            const {
-                data,
-                error
-            } =
-                await supabaseClient
-                    .auth
-                    .signUp({
-
-                        email,
-
-                        password,
-
-                        options: {
-
-                            data: {
-                                full_name:
-                                    name
-                            },
-
-                            emailRedirectTo:
-                                "http://localhost:3000/"
-
-                        }
-
-                    });
-
-
-            if (error)
-                throw error;
-
-
-            if (data.session) {
-
-                showToast(
-                    "Tạo tài khoản thành công!"
-                );
-
-            } else {
-
-                showToast(
-                    "Đăng ký thành công. Kiểm tra email nếu Supabase yêu cầu xác nhận."
-                );
-
-            }
-
-
-            closeAuthModal();
-
-        }
-
-
-        /* =========================
-           LOGIN
-        ========================= */
-
-        else {
-
-            const {
-                error
-            } =
-                await supabaseClient
-                    .auth
-                    .signInWithPassword({
-
-                        email,
-
-                        password
-
-                    });
-
-
-            if (error)
-                throw error;
-
-
-            closeAuthModal();
-
-
-            showToast(
-                "Đăng nhập thành công!"
-            );
-
-
-            if (
-                pendingBookingDay !==
-                null
-            ) {
-
-                const day =
-                    pendingBookingDay;
-
-
-                pendingBookingDay =
-                    null;
-
-
-                setTimeout(() => {
-
-                    openBooking(day);
-
-                }, 150);
-
-            }
-
-        }
-
-
-    } catch (error) {
+    if (error) {
 
         console.error(
-            "AUTH ERROR:",
+            "getUser error:",
             error
         );
 
+        currentUser = null;
 
-        const message =
-            document.getElementById(
-                "auth-message"
-            );
+        return;
+    }
 
-        if (message) {
+    currentUser =
+        data?.user || null;
+}
 
-            message.textContent =
-                translateAuthError(
-                    error.message
-                );
+
+async function loadCurrentProfile() {
+
+    currentProfile = null;
+
+    if (!currentUser) {
+        return;
+    }
+
+    const {
+        data,
+        error
+    } =
+        await supabaseClient
+            .from("profiles")
+            .select("*")
+            .eq(
+                "id",
+                currentUser.id
+            )
+            .maybeSingle();
+
+    if (error) {
+
+        console.error(
+            "load profile error:",
+            error
+        );
+
+        return;
+    }
+
+    currentProfile = data;
+}
+
+
+async function refreshAuthState() {
+
+    await loadCurrentUser();
+
+    await loadCurrentProfile();
+
+    updateAuthUI();
+}
+
+
+function updateAuthUI() {
+
+    const loginButtons =
+        document.querySelectorAll(
+            "[data-auth-login]"
+        );
+
+    const logoutButtons =
+        document.querySelectorAll(
+            "[data-auth-logout]"
+        );
+
+    loginButtons.forEach(
+        button => {
+
+            button.style.display =
+                currentUser
+                    ? "none"
+                    : "";
 
         }
+    );
 
-    } finally {
+    logoutButtons.forEach(
+        button => {
 
-        submitButton.disabled =
-            false;
+            button.style.display =
+                currentUser
+                    ? ""
+                    : "none";
 
+        }
+    );
 
-        submitButton.textContent =
-            authMode === "register"
-                ? "Đăng ký"
-                : "Đăng nhập";
+    const userNameElements =
+        document.querySelectorAll(
+            "[data-user-name]"
+        );
 
-    }
+    userNameElements.forEach(
+        element => {
 
+            element.textContent =
+                currentProfile?.full_name ||
+                currentUser?.email ||
+                "";
+
+        }
+    );
 }
 
-
-/* =========================================
-   AUTH ERROR
-========================================= */
-
-function translateAuthError(message) {
-
-    if (!message)
-        return "Có lỗi xảy ra.";
-
-
-    if (
-        message.includes(
-            "Invalid login credentials"
-        )
-    ) {
-
-        return "Email hoặc mật khẩu không đúng.";
-
-    }
-
-
-    if (
-        message.includes(
-            "User already registered"
-        )
-    ) {
-
-        return "Email này đã được đăng ký.";
-
-    }
-
-
-    if (
-        message.includes(
-            "Password should be at least"
-        )
-    ) {
-
-        return "Mật khẩu phải có ít nhất 6 ký tự.";
-
-    }
-
-
-    if (
-        message.includes(
-            "Email not confirmed"
-        )
-    ) {
-
-        return "Email chưa được xác nhận.";
-
-    }
-
-
-    return message;
-}
-
-
-/* =========================================
-   LOGOUT
-========================================= */
 
 async function signOutUser() {
 
@@ -476,253 +377,32 @@ async function signOutUser() {
             .auth
             .signOut();
 
-
-    if (error) {
-
-        console.error(error);
-
-        showToast(
-            "Không thể đăng xuất."
-        );
-
-        return;
-    }
-
-
-    showToast(
-        "Đã đăng xuất."
-    );
-}
-
-
-/* =========================================
-   LOAD PROFILE
-========================================= */
-
-async function loadCurrentProfile(user) {
-
-    currentUser = user;
-
-    currentProfile = null;
-
-
-    if (!user) {
-
-        updateAuthUI();
-
-        return;
-    }
-
-
-    const {
-        data,
-        error
-    } =
-        await supabaseClient
-            .from("profiles")
-            .select(
-                "id, full_name, phone, avatar_url, role"
-            )
-            .eq(
-                "id",
-                user.id
-            )
-            .maybeSingle();
-
-
     if (error) {
 
         console.error(
-            "PROFILE ERROR:",
+            "signOut error:",
             error
         );
 
-    } else {
+        alert(
+            "Đăng xuất thất bại."
+        );
 
-        currentProfile = data;
-
+        return;
     }
 
+    currentUser = null;
+    currentProfile = null;
 
     updateAuthUI();
 }
 
 
 /* =========================================
-   UPDATE AUTH UI
+   LOAD CHARACTERS
 ========================================= */
 
-function updateAuthUI() {
-
-    const button =
-        document.getElementById(
-            "auth-button"
-        );
-
-    const userBox =
-        document.getElementById(
-            "auth-user"
-        );
-
-    const name =
-        document.getElementById(
-            "auth-user-name"
-        );
-
-    const role =
-        document.getElementById(
-            "auth-user-role"
-        );
-
-    if (!button || !userBox)
-        return;
-
-
-    /* =========================
-       NOT LOGGED IN
-    ========================= */
-
-    if (!currentUser) {
-
-        button.style.display =
-            "inline-block";
-
-        userBox.style.display =
-            "none";
-
-        const adminButton =
-            document.getElementById(
-                "admin-button"
-            );
-
-        if (adminButton) {
-
-            adminButton.style.display =
-                "none";
-
-        }
-
-        return;
-    }
-
-
-    /* =========================
-       LOGGED IN
-    ========================= */
-
-    button.style.display =
-        "none";
-
-    userBox.style.display =
-        "flex";
-
-
-    if (name) {
-
-        name.textContent =
-            currentProfile?.full_name ||
-            currentUser.email ||
-            "Tài khoản";
-
-    }
-
-
-    const isAdmin =
-        currentProfile?.role ===
-        "admin";
-
-
-    if (role) {
-
-        role.textContent =
-            isAdmin
-                ? "ADMIN"
-                : "KHÁCH";
-
-        role.style.display =
-            "inline-block";
-
-    }
-
-
-    const adminButton =
-        document.getElementById(
-            "admin-button"
-        );
-
-    if (adminButton) {
-
-        adminButton.style.display =
-            isAdmin
-                ? "inline-block"
-                : "none";
-
-    }
-
-}
-
-
-/* =========================================
-   AUTH STATE LISTENER
-========================================= */
-
-supabaseClient
-    .auth
-    .onAuthStateChange(
-        (_event, session) => {
-
-            setTimeout(() => {
-
-                loadCurrentProfile(
-                    session?.user ||
-                    null
-                );
-
-            }, 0);
-
-        }
-    );
-
-
-/* =========================================
-   INIT AUTH
-========================================= */
-
-async function initAuth() {
-
-    const {
-        data,
-        error
-    } =
-        await supabaseClient
-            .auth
-            .getSession();
-
-
-    if (error) {
-
-        console.error(
-            "SESSION ERROR:",
-            error
-        );
-
-        return;
-    }
-
-
-    await loadCurrentProfile(
-        data.session?.user ||
-        null
-    );
-
-}
-
-
-/* =========================================
-   LOAD CHARACTERS FROM SUPABASE
-========================================= */
-
-async function loadCharactersFromSupabase() {
+async function loadCharacters() {
 
     const {
         data,
@@ -730,21 +410,7 @@ async function loadCharactersFromSupabase() {
     } =
         await supabaseClient
             .from("characters")
-            .select(`
-                id,
-                name,
-                category,
-                description,
-                address,
-                image_url,
-                included_items,
-                is_active,
-                created_at
-            `)
-            .eq(
-                "is_active",
-                true
-            )
+            .select("*")
             .order(
                 "created_at",
                 {
@@ -752,169 +418,83 @@ async function loadCharactersFromSupabase() {
                 }
             );
 
-
     if (error) {
 
         console.error(
-            "CHARACTERS ERROR:",
+            "load characters error:",
             error
         );
 
-        showToast(
-            "Không thể tải danh sách nhân vật."
-        );
-
         return;
     }
 
-
     characters =
-        (data || []).map(
-            character => ({
+        data || [];
 
-                id:
-                    character.id,
-
-                name:
-                    character.name ||
-                    "",
-
-                category:
-                    character.category ||
-                    "",
-
-                description:
-                    character.description ||
-                    "",
-
-                address:
-                    character.address ||
-                    "",
-
-                image:
-                    character.image_url ||
-                    "",
-
-                items:
-                    Array.isArray(
-                        character.included_items
-                    )
-                        ? character.included_items
-                        : [],
-
-                rentedDays:
-                    []
-
-            })
-        );
-
-
-    showCharacters(
-        characters
-    );
-
+    renderCharacters();
 }
 
 
-/* =========================================
-   SHOW CHARACTERS
-========================================= */
+function renderCharacters() {
 
-function showCharacters(
-    list = characters
-) {
-
-    if (!characterList)
-        return;
-
-
-    characterList.innerHTML =
-        "";
-
-
-    if (characterCount) {
-
-        characterCount.textContent =
-            `${list.length} nhân vật`;
-
-    }
-
-
-    if (list.length === 0) {
-
-        characterList.innerHTML = `
-
-            <p
-                style="
-                    grid-column:1/-1;
-                    color:#888;
-                "
-            >
-                Không tìm thấy nhân vật.
-            </p>
-
-        `;
-
+    if (!characterList) {
         return;
     }
 
+    characterList.innerHTML = "";
 
-    list.forEach(
+    characters.forEach(
         character => {
 
             const card =
                 document.createElement(
-                    "article"
+                    "div"
                 );
-
 
             card.className =
                 "character-card";
 
+            card.dataset.characterId =
+                character.id;
+
+            const image =
+                character.image_url ||
+                character.image ||
+                "";
+
+            const name =
+                character.name ||
+                "Nhân vật";
 
             card.innerHTML = `
+                ${
+                    image
+                        ? `
+                            <img
+                                src="${escapeHtml(image)}"
+                                alt="${escapeHtml(name)}"
+                            >
+                          `
+                        : ""
+                }
 
-                <img
-                    class="character-card-image"
-                    src="${character.image}"
-                    alt="${character.name}"
-                >
-
-                <div
-                    class="character-card-info"
-                >
-
-                    <div
-                        class="character-card-category"
-                    >
-                        ${character.category}
-                    </div>
-
-                    <h3
-                        class="character-card-name"
-                    >
-                        ${character.name}
+                <div class="character-card-content">
+                    <h3>
+                        ${escapeHtml(name)}
                     </h3>
-
-                    <div
-                        class="character-card-address"
-                    >
-                        ${character.address}
-                    </div>
-
                 </div>
-
             `;
 
+            card.addEventListener(
+                "click",
+                () => {
 
-            card.onclick = () => {
+                    selectCharacter(
+                        character
+                    );
 
-                openCharacter(
-                    character.id
-                );
-
-            };
-
+                }
+            );
 
             characterList.appendChild(
                 card
@@ -926,243 +506,237 @@ function showCharacters(
 
 
 /* =========================================
-   OPEN CHARACTER
+   CHARACTER SELECTION
 ========================================= */
 
-function openCharacter(id) {
-
-    const character =
-        characters.find(
-            item =>
-                item.id === id
-        );
-
-
-    if (!character)
-        return;
-
+async function selectCharacter(
+    character
+) {
 
     selectedCharacter =
         character;
 
+    currentMonth =
+        new Date().getMonth();
 
-    homePage?.classList.add(
-        "hidden"
-    );
+    currentYear =
+        new Date().getFullYear();
 
+    rentedDays =
+        new Set();
 
-    characterPage?.classList.remove(
-        "hidden"
-    );
-
-
-    const detailImage =
-        document.getElementById(
-            "detail-image"
-        );
-
-    if (detailImage) {
-
-        detailImage.src =
-            character.image;
-
-        detailImage.alt =
-            character.name;
-
-    }
-
-
-    const detailCategory =
-        document.getElementById(
-            "detail-category"
-        );
-
-    if (detailCategory) {
-
-        detailCategory.textContent =
-            character.category;
-
-    }
-
-
-    const detailName =
-        document.getElementById(
-            "detail-name"
-        );
-
-    if (detailName) {
-
-        detailName.textContent =
-            character.name;
-
-    }
-
-
-    const detailDescription =
-        document.getElementById(
-            "detail-description"
-        );
-
-    if (detailDescription) {
-
-        detailDescription.textContent =
-            character.description;
-
-    }
-
-
-    /* =========================
-       ĐỊA CHỈ
-    ========================= */
-
-    const detailAddress =
-        document.getElementById(
-            "detail-address"
-        );
-
-    if (detailAddress) {
-
-        detailAddress.textContent =
-            character.address ||
-            "Chưa cập nhật địa chỉ";
-
-    }
-
-
-    /* =========================
-       ITEMS
-    ========================= */
-
-    const items =
-        document.getElementById(
-            "detail-items"
-        );
-
-
-    if (items) {
-
-        items.innerHTML =
-            "";
-
-
-        character.items.forEach(
-            item => {
-
-                const li =
-                    document.createElement(
-                        "li"
-                    );
-
-
-                li.textContent =
-                    item;
-
-
-                items.appendChild(
-                    li
-                );
-
-            }
-        );
-
-    }
-
-
-    currentMonth = 8;
-    currentYear = 2026;
-
+    await loadRentedDays();
 
     renderCalendar();
-
-
-    window.scrollTo({
-
-        top: 0,
-
-        behavior: "smooth"
-
-    });
-
 }
 
 
 /* =========================================
-   HOME
+   LOAD REAL RENTAL DAYS
 ========================================= */
 
-function goHome() {
+async function loadRentedDays() {
 
-    characterPage?.classList.add(
-        "hidden"
-    );
+    rentedDays =
+        new Set();
 
-
-    homePage?.classList.remove(
-        "hidden"
-    );
-
-
-    window.scrollTo({
-
-        top: 0,
-
-        behavior: "smooth"
-
-    });
-
-}
-
-
-/* =========================================
-   SEARCH
-========================================= */
-
-function searchCharacters() {
-
-    const input =
-        document.getElementById(
-            "search-input"
-        );
-
-    if (!input)
+    if (!selectedCharacter?.id) {
         return;
+    }
 
+    /*
+       Lấy các đơn thuê thực tế của nhân vật.
 
-    const keyword =
-        input.value
-            .toLowerCase()
-            .trim();
+       pending + confirmed:
+       đều được coi là đang giữ ngày để tránh
+       khách khác đặt trùng trong thời gian chờ.
+    */
 
+    const {
+        data,
+        error
+    } =
+        await supabaseClient
+            .from("rentals")
+            .select(
+                "start_date,end_date,status"
+            )
+            .eq(
+                "character_id",
+                selectedCharacter.id
+            )
+            .in(
+                "status",
+                [
+                    "pending",
+                    "confirmed"
+                ]
+            );
 
-    const result =
-        characters.filter(
-            character =>
+    if (error) {
 
-                character.name
-                    .toLowerCase()
-                    .includes(
-                        keyword
-                    )
-
-                ||
-
-                character.category
-                    .toLowerCase()
-                    .includes(
-                        keyword
-                    )
-
-                ||
-
-                character.address
-                    .toLowerCase()
-                    .includes(
-                        keyword
-                    )
+        console.error(
+            "load rented days error:",
+            error
         );
 
+        /*
+           Không tự đánh dấu ngày là đã thuê
+           nếu không lấy được dữ liệu.
+        */
 
-    showCharacters(result);
+        return;
+    }
+
+    (data || []).forEach(
+        rental => {
+
+            const startDate =
+                normalizeDateString(
+                    rental.start_date
+                );
+
+            const endDate =
+                normalizeDateString(
+                    rental.end_date
+                );
+
+            if (
+                !startDate ||
+                !endDate
+            ) {
+                return;
+            }
+
+            datesBetween(
+                startDate,
+                endDate
+            ).forEach(
+                date => {
+
+                    rentedDays.add(
+                        date
+                    );
+
+                }
+            );
+
+        }
+    );
+}
+
+
+/* =========================================
+   CHECK AVAILABILITY AGAIN
+   RIGHT BEFORE BOOKING
+========================================= */
+
+async function checkRentalAvailability(
+    characterId,
+    startDate,
+    endDate
+) {
+
+    /*
+       Đây là lớp kiểm tra thứ hai.
+
+       Dù lịch trên màn hình vừa hiển thị
+       "Còn trống", một khách khác có thể vừa
+       đặt trước đó vài giây.
+
+       Vì vậy phải kiểm tra lại trước INSERT.
+    */
+
+    const {
+        data,
+        error
+    } =
+        await supabaseClient
+            .rpc(
+                "is_rental_date_available",
+                {
+                    p_character_id:
+                        characterId,
+
+                    p_start_date:
+                        startDate,
+
+                    p_end_date:
+                        endDate
+                }
+            );
+
+    if (error) {
+
+        console.error(
+            "availability RPC error:",
+            error
+        );
+
+        /*
+           Nếu database chưa có RPC này,
+           fallback sang truy vấn trực tiếp.
+        */
+
+        const fallback =
+            await supabaseClient
+                .from("rentals")
+                .select(
+                    "id,start_date,end_date,status"
+                )
+                .eq(
+                    "character_id",
+                    characterId
+                )
+                .in(
+                    "status",
+                    [
+                        "pending",
+                        "confirmed"
+                    ]
+                )
+                .lte(
+                    "start_date",
+                    endDate
+                )
+                .gte(
+                    "end_date",
+                    startDate
+                )
+                .limit(1);
+
+        if (fallback.error) {
+
+            console.error(
+                "fallback availability error:",
+                fallback.error
+            );
+
+            return {
+                available: false,
+                error:
+                    fallback.error
+            };
+        }
+
+        return {
+            available:
+                !(
+                    fallback.data &&
+                    fallback.data.length
+                ),
+
+            error: null
+        };
+    }
+
+    return {
+        available:
+            data === true ||
+            data?.available === true,
+
+        error: null
+    };
 }
 
 
@@ -1172,108 +746,75 @@ function searchCharacters() {
 
 function renderCalendar() {
 
-    if (!selectedCharacter)
+    if (!calendar) {
         return;
-
-
-    const calendar =
-        document.getElementById(
-            "calendar"
-        );
-
-
-    const monthTitle =
-        document.getElementById(
-            "month-title"
-        );
-
-
-    if (!calendar ||
-        !monthTitle)
-        return;
-
-
-    const monthNames = [
-
-        "Tháng 1",
-        "Tháng 2",
-        "Tháng 3",
-        "Tháng 4",
-        "Tháng 5",
-        "Tháng 6",
-        "Tháng 7",
-        "Tháng 8",
-        "Tháng 9",
-        "Tháng 10",
-        "Tháng 11",
-        "Tháng 12"
-
-    ];
-
-
-    monthTitle.textContent =
-        `${monthNames[currentMonth]} ${currentYear}`;
-
-
-    calendar.innerHTML =
-        "";
-
-
-    const weekdays = [
-
-        "T2",
-        "T3",
-        "T4",
-        "T5",
-        "T6",
-        "T7",
-        "CN"
-
-    ];
-
-
-    weekdays.forEach(
-        day => {
-
-            const element =
-                document.createElement(
-                    "div"
-                );
-
-
-            element.className =
-                "calendar-weekday";
-
-
-            element.textContent =
-                day;
-
-
-            calendar.appendChild(
-                element
-            );
-
-        }
-    );
-
+    }
 
     const firstDay =
         new Date(
             currentYear,
             currentMonth,
             1
-        ).getDay();
+        );
 
+    const lastDay =
+        new Date(
+            currentYear,
+            currentMonth + 1,
+            0
+        );
 
-    const mondayIndex =
-        firstDay === 0
-            ? 6
-            : firstDay - 1;
+    const firstWeekDay =
+        firstDay.getDay();
 
+    const daysInMonth =
+        lastDay.getDate();
+
+    if (calendarTitle) {
+
+        calendarTitle.textContent =
+            `Tháng ${
+                currentMonth + 1
+            }/${currentYear}`;
+
+    }
+
+    calendar.innerHTML = "";
+
+    const weekdayNames = [
+        "CN",
+        "T2",
+        "T3",
+        "T4",
+        "T5",
+        "T6",
+        "T7"
+    ];
+
+    weekdayNames.forEach(
+        name => {
+
+            const header =
+                document.createElement(
+                    "div"
+                );
+
+            header.className =
+                "calendar-weekday";
+
+            header.textContent =
+                name;
+
+            calendar.appendChild(
+                header
+            );
+
+        }
+    );
 
     for (
         let i = 0;
-        i < mondayIndex;
+        i < firstWeekDay;
         i++
     ) {
 
@@ -1282,25 +823,13 @@ function renderCalendar() {
                 "div"
             );
 
-
         empty.className =
-            "calendar-empty";
-
+            "calendar-day empty";
 
         calendar.appendChild(
             empty
         );
-
     }
-
-
-    const daysInMonth =
-        new Date(
-            currentYear,
-            currentMonth + 1,
-            0
-        ).getDate();
-
 
     for (
         let day = 1;
@@ -1308,67 +837,118 @@ function renderCalendar() {
         day++
     ) {
 
-        const element =
-            document.createElement(
-                "div"
+        const date =
+            new Date(
+                currentYear,
+                currentMonth,
+                day
             );
 
+        const dateString =
+            formatDate(date);
 
-        const rented =
-            selectedCharacter
-                .rentedDays
-                .includes(day);
+        const cell =
+            document.createElement(
+                "button"
+            );
 
+        cell.type =
+            "button";
 
-        element.className =
-            `calendar-day ${
-                rented
-                    ? "rented"
-                    : "available"
-            }`;
+        cell.className =
+            "calendar-day";
 
+        cell.dataset.date =
+            dateString;
 
-        element.innerHTML = `
+        const isRented =
+            rentedDays.has(
+                dateString
+            );
 
-            <div
-                class="calendar-day-number"
-            >
-                ${day}
-            </div>
+        const today =
+            new Date();
 
-            <span
-                class="day-status"
-            >
-                ${
-                    rented
-                        ? "Đã thuê"
-                        : "Còn trống"
-                }
-            </span>
-
-        `;
-
-
-        if (!rented) {
-
-            element.onclick =
-                () => {
-
-                    openBooking(
-                        day
-                    );
-
-                };
-
-        }
-
-
-        calendar.appendChild(
-            element
+        today.setHours(
+            0,
+            0,
+            0,
+            0
         );
 
-    }
+        const isPast =
+            date < today;
 
+        if (isRented) {
+
+            cell.classList.add(
+                "rented"
+            );
+
+            cell.disabled =
+                true;
+
+            cell.innerHTML = `
+                <span class="day-number">
+                    ${day}
+                </span>
+
+                <span class="day-status">
+                    Đã thuê
+                </span>
+            `;
+
+        } else if (isPast) {
+
+            cell.classList.add(
+                "past"
+            );
+
+            cell.disabled =
+                true;
+
+            cell.innerHTML = `
+                <span class="day-number">
+                    ${day}
+                </span>
+
+                <span class="day-status">
+                    Đã qua
+                </span>
+            `;
+
+        } else {
+
+            cell.classList.add(
+                "available"
+            );
+
+            cell.innerHTML = `
+                <span class="day-number">
+                    ${day}
+                </span>
+
+                <span class="day-status">
+                    Còn trống
+                </span>
+            `;
+
+            cell.addEventListener(
+                "click",
+                () => {
+
+                    openBookingModal(
+                        dateString
+                    );
+
+                }
+            );
+        }
+
+        calendar.appendChild(
+            cell
+        );
+    }
 }
 
 
@@ -1376,10 +956,11 @@ function renderCalendar() {
    MONTH NAVIGATION
 ========================================= */
 
-function previousMonth() {
+async function changeMonth(
+    offset
+) {
 
-    currentMonth--;
-
+    currentMonth += offset;
 
     if (currentMonth < 0) {
 
@@ -1389,16 +970,6 @@ function previousMonth() {
 
     }
 
-
-    renderCalendar();
-}
-
-
-function nextMonth() {
-
-    currentMonth++;
-
-
     if (currentMonth > 11) {
 
         currentMonth = 0;
@@ -1407,678 +978,560 @@ function nextMonth() {
 
     }
 
+    /*
+       Mỗi lần đổi tháng đều tải lại
+       dữ liệu thật từ Supabase.
+    */
+
+    await loadRentedDays();
 
     renderCalendar();
 }
 
 
-/* =========================================
-   BOOKING
-========================================= */
+if (prevMonthBtn) {
 
-function openBooking(day) {
+    prevMonthBtn.addEventListener(
+        "click",
+        () => {
 
-    if (!currentUser) {
+            changeMonth(-1);
 
-        pendingBookingDay =
-            day;
-
-        openAuthModal(
-            "Bạn cần đăng nhập để gửi yêu cầu thuê."
-        );
-
-        return;
-    }
-
-
-    selectedBookingDay =
-        day;
-
-
-    const modal =
-        document.getElementById(
-            "booking-modal"
-        );
-
-
-    if (!modal)
-        return;
-
-
-    document
-        .getElementById(
-            "booking-title"
-        )
-        .textContent =
-        `Thuê ${selectedCharacter.name}`;
-
-
-    document
-        .getElementById(
-            "booking-date"
-        )
-        .textContent =
-        `Ngày ${day}/${currentMonth + 1}/${currentYear}`;
-
-
-    modal.classList.remove(
-        "hidden"
+        }
     );
 
-
-    document
-        .getElementById(
-            "customer-name"
-        )
-        .value =
-        currentProfile?.full_name ||
-        "";
+}
 
 
-    document
-        .getElementById(
-            "customer-phone"
-        )
-        .value =
-        currentProfile?.phone ||
-        "";
+if (nextMonthBtn) {
 
+    nextMonthBtn.addEventListener(
+        "click",
+        () => {
 
-    document
-        .getElementById(
-            "customer-name"
-        )
-        ?.focus();
+            changeMonth(1);
+
+        }
+    );
 
 }
 
 
 /* =========================================
-   CLOSE BOOKING
+   BOOKING MODAL
 ========================================= */
 
-function closeBooking() {
-
-    document
-        .getElementById(
-            "booking-modal"
-        )
-        ?.classList.add(
-            "hidden"
-        );
-
-}
-
-
-/* =========================================
-   SUBMIT BOOKING
-========================================= */
-
-async function submitBooking(event) {
-
-    event.preventDefault();
-
-    /* =========================
-       CHECK LOGIN
-    ========================= */
-
-
-    if (!currentUser) {
-
-        closeBooking();
-
-        pendingBookingDay = null;
-
-        openAuthModal(
-            "Phiên đăng nhập đã hết. Vui lòng đăng nhập lại."
-        );
-
-        return;
-    }
-
-
-    /* =========================
-       CHECK CHARACTER
-    ========================= */
-
-    if (!selectedCharacter) {
-
-        showToast(
-            "Không xác định được nhân vật."
-        );
-
-        return;
-    }
-
-
-    /* =========================
-       GET FORM DATA
-    ========================= */
-
-    const name =
-        document
-            .getElementById("customer-name")
-            .value
-            .trim();
-
-
-    const phone =
-        document
-            .getElementById("customer-phone")
-            .value
-            .trim();
-
-
-    const note =
-        document
-            .getElementById("customer-note")
-            .value
-            .trim();
-
-
-    /* =========================
-       CHECK REQUIRED
-    ========================= */
-
-    if (!name) {
-
-        showToast(
-            "Vui lòng nhập họ tên."
-        );
-
-        return;
-    }
-
-
-    if (!phone) {
-
-        showToast(
-            "Vui lòng nhập số điện thoại."
-        );
-
-        return;
-    }
-
-
-    /* =========================
-       CREATE DATE
-       YYYY-MM-DD
-    ========================= */
-
-    const month =
-        String(currentMonth + 1)
-            .padStart(2, "0");
-
-
-    const day =
-        String(
-            pendingBookingDay ||
-            Number(
-                document
-                    .getElementById("booking-date")
-                    ?.textContent
-                    ?.match(/\d+/)?.[0]
-            )
-        ).padStart(2, "0");
-
-
-    const startDate =
-        `${currentYear}-${month}-${day}`;
-
+function openBookingModal(
+    dateString
+) {
 
     /*
-       Hiện tại hệ thống cho thuê theo ngày.
-       Vì vậy start_date và end_date
-       sẽ cùng là ngày khách chọn.
+       Kiểm tra lần nữa ở client trước
+       khi mở form.
     */
 
-    const endDate =
-        startDate;
-
-
-    /* =========================
-       DISABLE BUTTON
-    ========================= */
-
-    const submitButton =
-        event.target.querySelector(
-            'button[type="submit"]'
-        );
-
-
-    if (submitButton) {
-
-        submitButton.disabled = true;
-
-        submitButton.textContent =
-            "Đang gửi...";
-    }
-
-
-    try {
-
-        /* =========================
-           UPDATE PROFILE
-        ========================= */
-
-        const {
-            error: profileError
-        } =
-            await supabaseClient
-                .from("profiles")
-                .update({
-
-                    full_name:
-                        name,
-
-                    phone:
-                        phone
-
-                })
-                .eq(
-                    "id",
-                    currentUser.id
-                );
-
-
-        if (profileError) {
-
-            console.error(
-                "PROFILE UPDATE ERROR:",
-                profileError
-            );
-
-            /*
-               Không dừng đơn ở đây.
-               Nếu profile update lỗi,
-               vẫn thử tạo rental.
-            */
-        }
-
-
-        /* =========================
-           CUSTOMER NOTE
-        ========================= */
-
-        const customerNote =
-            [
-                `Họ tên: ${name}`,
-                `SĐT: ${phone}`,
-                note
-                    ? `Ghi chú: ${note}`
-                    : ""
-            ]
-                .filter(Boolean)
-                .join("\n");
-
-
-        /* =========================
-           INSERT RENTAL
-        ========================= */
-
-        const {
-            data,
-            error
-        } =
-            await supabaseClient
-                .from("rentals")
-                .insert({
-
-                    user_id:
-                        currentUser.id,
-
-                    character_id:
-                        selectedCharacter.id,
-
-                    start_date:
-                        startDate,
-
-                    end_date:
-                        endDate,
-
-                    customer_note:
-                        customerNote,
-
-                    status:
-                        "pending"
-
-                })
-                .select()
-                .single();
-
-
-        if (error)
-            throw error;
-
-
-        console.log(
-            "BOOKING CREATED:",
-            data
-        );
-
-
-        /* =========================
-           CLOSE MODAL
-        ========================= */
-
-        closeBooking();
-
-
-        /* =========================
-           SUCCESS
-        ========================= */
-
-        showToast(
-            "Đặt thuê thành công! Shop sẽ liên hệ với bạn."
-        );
-
-
-        /* =========================
-           RESET FORM
-        ========================= */
-
-        event.target.reset();
-
-
-        /*
-           Cập nhật thông tin profile
-           trong bộ nhớ hiện tại.
-        */
-
-        if (currentProfile) {
-
-            currentProfile.full_name =
-                name;
-
-            currentProfile.phone =
-                phone;
-
-        }
-
-
-        /*
-           Tạm thời đánh dấu ngày này đã có đơn
-           để giao diện lịch cập nhật ngay.
-        */
-
-        if (
-            !selectedCharacter.rentedDays
-                .includes(
-                    Number(day)
-                )
-        ) {
-
-            selectedCharacter.rentedDays
-                .push(
-                    Number(day)
-                );
-
-        }
-
-
-        renderCalendar();
-
-
-    } catch (error) {
-
-        console.error(
-            "BOOKING ERROR:",
-            error
-        );
-
-
-        showToast(
-            "Không thể tạo đơn. Vui lòng thử lại."
-        );
-
-
-    } finally {
-
-        /* =========================
-           ENABLE BUTTON
-        ========================= */
-
-        if (submitButton) {
-
-            submitButton.disabled =
-                false;
-
-            submitButton.textContent =
-                "Gửi yêu cầu";
-
-        }
-
-    }
-
-}
-
-
-/* =========================================
-   TOAST
-========================================= */
-
-function showToast(message) {
-
-    const toast =
-        document.getElementById(
-            "toast"
-        );
-
-
-    if (!toast)
-        return;
-
-
-    toast.textContent =
-        message;
-
-
-    toast.classList.add(
-        "show"
-    );
-
-
-    setTimeout(() => {
-
-        toast.classList.remove(
-            "show"
-        );
-
-    }, 2500);
-
-}
-
-
-/* =========================================
-   SEARCH BUTTON
-========================================= */
-
-function focusSearch() {
-
-    goHome();
-
-
-    setTimeout(() => {
-
-        document
-            .getElementById(
-                "search-input"
-            )
-            ?.focus();
-
-    }, 100);
-
-}
-
-
-/* =========================================
-   IMAGE LIGHTBOX
-========================================= */
-
-function openImageLightbox() {
-
-    const detailImage =
-        document.getElementById(
-            "detail-image"
-        );
-
-    const lightbox =
-        document.getElementById(
-            "image-lightbox"
-        );
-
-    const lightboxImage =
-        document.getElementById(
-            "lightbox-image"
-        );
-
-
     if (
-        !detailImage ||
-        !lightbox ||
-        !lightboxImage
+        rentedDays.has(
+            dateString
+        )
     ) {
 
-        return;
-
-    }
-
-
-    if (!detailImage.src)
-        return;
-
-
-    lightboxImage.src =
-        detailImage.src;
-
-
-    lightboxImage.alt =
-        detailImage.alt ||
-        "";
-
-
-    lightbox.classList.remove(
-        "hidden"
-    );
-
-
-    document.body.style.overflow =
-        "hidden";
-}
-
-
-function closeImageLightbox() {
-
-    const lightbox =
-        document.getElementById(
-            "image-lightbox"
+        alert(
+            "Ngày này đã có người thuê. Vui lòng chọn ngày khác."
         );
 
-
-    if (!lightbox)
         return;
+    }
 
+    selectedBookingDay =
+        dateString;
 
-    lightbox.classList.add(
-        "hidden"
-    );
+    if (bookingDateText) {
 
+        const date =
+            parseDate(
+                dateString
+            );
 
-    document.body.style.overflow =
-        "";
+        bookingDateText.textContent =
+            date
+                ? date.toLocaleDateString(
+                    "vi-VN"
+                )
+                : dateString;
+
+    }
+
+    if (bookingModal) {
+
+        bookingModal.classList.add(
+            "active"
+        );
+
+        bookingModal.style.display =
+            "flex";
+
+    }
 }
 
 
-/* =========================================
-   CLICK IMAGE
-========================================= */
+function closeBookingModal() {
 
-document.addEventListener(
-    "click",
-    function(event) {
+    selectedBookingDay =
+        null;
 
-        if (
-            event.target &&
-            event.target.id ===
-                "detail-image"
-        ) {
+    if (bookingModal) {
 
-            openImageLightbox();
+        bookingModal.classList.remove(
+            "active"
+        );
 
-        }
+        bookingModal.style.display =
+            "none";
 
     }
-);
+}
 
 
-/* =========================================
-   ESC CLOSE LIGHTBOX
-========================================= */
+if (closeBookingBtn) {
 
-document.addEventListener(
-    "keydown",
-    function(event) {
+    closeBookingBtn.addEventListener(
+        "click",
+        closeBookingModal
+    );
 
-        if (
-            event.key ===
-            "Escape"
-        ) {
-
-            closeImageLightbox();
-
-        }
-
-    }
-);
+}
 
 
-/* =========================================
-   CLOSE AUTH WHEN CLICK OUTSIDE
-========================================= */
+if (bookingModal) {
 
-document
-    .getElementById(
-        "auth-modal"
-    )
-    ?.addEventListener(
+    bookingModal.addEventListener(
         "click",
         event => {
 
             if (
-                event.target.id ===
-                "auth-modal"
+                event.target ===
+                bookingModal
             ) {
 
-                closeAuthModal();
+                closeBookingModal();
 
             }
 
         }
     );
 
-
-/* =========================================
-   ADMIN PAGE
-========================================= */
-
-function openAdminPage() {
-
-    window.location.href =
-        "admin.html";
 }
 
 
 /* =========================================
-   INITIALIZE
+   CREATE RENTAL
 ========================================= */
 
-async function initApp() {
+async function createRental(
+    form
+) {
 
-    await loadCharactersFromSupabase();
+    if (!selectedCharacter?.id) {
 
-    await initAuth();
+        alert(
+            "Vui lòng chọn nhân vật."
+        );
+
+        return;
+    }
+
+    if (!selectedBookingDay) {
+
+        alert(
+            "Vui lòng chọn ngày thuê."
+        );
+
+        return;
+    }
+
+    /*
+       Bắt buộc đăng nhập.
+    */
+
+    if (!currentUser) {
+
+        alert(
+            "Vui lòng đăng nhập trước khi đặt thuê."
+        );
+
+        return;
+    }
+
+    /*
+       Hiện tại giao diện chọn một ngày.
+       start_date = end_date.
+    */
+
+    const startDate =
+        selectedBookingDay;
+
+    const endDate =
+        selectedBookingDay;
+
+    /*
+       KIỂM TRA LẦN CUỐI VỚI DATABASE
+       trước khi INSERT.
+    */
+
+    const availability =
+        await checkRentalAvailability(
+            selectedCharacter.id,
+            startDate,
+            endDate
+        );
+
+    if (
+        availability.error
+    ) {
+
+        alert(
+            "Không thể kiểm tra tình trạng ngày thuê. Vui lòng thử lại."
+        );
+
+        return;
+    }
+
+    if (
+        !availability.available
+    ) {
+
+        /*
+           Có người vừa đặt trong lúc
+           khách đang mở form.
+        */
+
+        rentedDays.add(
+            selectedBookingDay
+        );
+
+        renderCalendar();
+
+        closeBookingModal();
+
+        alert(
+            "Ngày này vừa có người đặt. Vui lòng chọn ngày khác."
+        );
+
+        return;
+    }
+
+    /*
+       Lấy dữ liệu form.
+    */
+
+    const formData =
+        new FormData(form);
+
+    const rentalData = {
+
+        character_id:
+            selectedCharacter.id,
+
+        user_id:
+            currentUser.id,
+
+        start_date:
+            startDate,
+
+        end_date:
+            endDate,
+
+        status:
+            "pending"
+    };
+
+    /*
+       Copy các field có trong form
+       nếu database đang sử dụng chúng.
+    */
+
+    const customerName =
+        formData.get(
+            "customer_name"
+        );
+
+    const phone =
+        formData.get(
+            "phone"
+        );
+
+    const note =
+        formData.get(
+            "note"
+        );
+
+    if (customerName) {
+
+        rentalData.customer_name =
+            customerName;
+
+    }
+
+    if (phone) {
+
+        rentalData.phone =
+            phone;
+
+    }
+
+    if (note) {
+
+        rentalData.note =
+            note;
+
+    }
+
+    /*
+       INSERT.
+    */
+
+    const {
+        data,
+        error
+    } =
+        await supabaseClient
+            .from("rentals")
+            .insert(
+                rentalData
+            )
+            .select()
+            .single();
+
+    if (error) {
+
+        console.error(
+            "create rental error:",
+            error
+        );
+
+        /*
+           Database có thể từ chối vì
+           một khách khác vừa đặt cùng ngày.
+        */
+
+        if (
+            error.code ===
+            "23P01" ||
+            error.code ===
+            "23505"
+        ) {
+
+            rentedDays.add(
+                selectedBookingDay
+            );
+
+            renderCalendar();
+
+            closeBookingModal();
+
+            alert(
+                "Ngày này vừa có người đặt. Vui lòng chọn ngày khác."
+            );
+
+            return;
+        }
+
+        alert(
+            "Đặt thuê thất bại: " +
+            (
+                error.message ||
+                "Lỗi không xác định."
+            )
+        );
+
+        return;
+    }
+
+    console.log(
+        "Rental created:",
+        data
+    );
+
+    /*
+       Cập nhật giao diện ngay lập tức.
+    */
+
+    rentedDays.add(
+        selectedBookingDay
+    );
+
+    renderCalendar();
+
+    closeBookingModal();
+
+    if (form) {
+        form.reset();
+    }
+
+    alert(
+        "Đặt thuê thành công!"
+    );
+
+    /*
+       Tải lại dữ liệu từ database để đảm bảo
+       giao diện phản ánh đúng trạng thái server.
+    */
+
+    await loadRentedDays();
+
+    renderCalendar();
+}
+
+
+/* =========================================
+   BOOKING FORM SUBMIT
+========================================= */
+
+if (bookingForm) {
+
+    bookingForm.addEventListener(
+        "submit",
+        async event => {
+
+            event.preventDefault();
+
+            const submitButton =
+                bookingForm.querySelector(
+                    'button[type="submit"]'
+                );
+
+            if (submitButton) {
+
+                submitButton.disabled =
+                    true;
+
+                submitButton.dataset.originalText =
+                    submitButton.textContent;
+
+                submitButton.textContent =
+                    "Đang xử lý...";
+
+            }
+
+            try {
+
+                await createRental(
+                    bookingForm
+                );
+
+            } catch (error) {
+
+                console.error(
+                    "booking submit error:",
+                    error
+                );
+
+                alert(
+                    "Có lỗi xảy ra khi đặt thuê. Vui lòng thử lại."
+                );
+
+            } finally {
+
+                if (submitButton) {
+
+                    submitButton.disabled =
+                        false;
+
+                    submitButton.textContent =
+                        submitButton.dataset.originalText ||
+                        "Đặt thuê";
+
+                }
+
+            }
+
+        }
+    );
 
 }
 
 
-initApp();
+/* =========================================
+   AUTH BUTTONS
+========================================= */
+
+document
+    .querySelectorAll(
+        "[data-auth-logout]"
+    )
+    .forEach(
+        button => {
+
+            button.addEventListener(
+                "click",
+                signOutUser
+            );
+
+        }
+    );
+
+
+/* =========================================
+   SUPABASE AUTH STATE
+========================================= */
+
+supabaseClient
+    .auth
+    .onAuthStateChange(
+        async (
+            event,
+            session
+        ) => {
+
+            currentUser =
+                session?.user || null;
+
+            await loadCurrentProfile();
+
+            updateAuthUI();
+
+        }
+    );
+
+
+/* =========================================
+   INITIALIZATION
+========================================= */
+
+async function init() {
+
+    try {
+
+        await refreshAuthState();
+
+        await loadCharacters();
+
+        /*
+           Nếu đã có nhân vật được chọn
+           thì tải lịch thật.
+        */
+
+        if (
+            selectedCharacter
+        ) {
+
+            await loadRentedDays();
+
+            renderCalendar();
+
+        }
+
+    } catch (error) {
+
+        console.error(
+            "Initialization error:",
+            error
+        );
+
+    }
+
+}
+
+
+init();
