@@ -1413,14 +1413,16 @@ function openBooking(day) {
         pendingBookingDay =
             day;
 
-
         openAuthModal(
             "Bạn cần đăng nhập để gửi yêu cầu thuê."
         );
 
-
         return;
     }
+
+
+    selectedBookingDay =
+        day;
 
 
     const modal =
@@ -1480,7 +1482,6 @@ function openBooking(day) {
 
 }
 
-
 /* =========================================
    CLOSE BOOKING
 ========================================= */
@@ -1502,9 +1503,19 @@ function closeBooking() {
    SUBMIT BOOKING
 ========================================= */
 
-async function submitBooking(event) {
+const month =
+    String(currentMonth + 1)
+        .padStart(2, "0");
 
-    event.preventDefault();
+const day =
+    String(selectedBookingDay)
+        .padStart(2, "0");
+
+const startDate =
+    `${currentYear}-${month}-${day}`;
+
+const endDate =
+    startDate;
 
 
     /* =========================
