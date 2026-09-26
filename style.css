@@ -273,11 +273,12 @@ img {
 
 .character-card-image {
     width: 100%;
-    aspect-ratio: 3 / 4;
+    aspect-ratio: 16 / 9;
 
-    object-fit: cover;
+    object-fit: contain;
 
     background: #eee;
+    display: block;
 }
 
 .character-card-info {
@@ -848,7 +849,7 @@ img {
     }
 
     .character-card-image {
-        aspect-ratio: 3 / 4;
+        aspect-ratio: 16 / 9;
     }
 
     .character-card-info {
