@@ -537,92 +537,71 @@ async function selectCharacter(
 
 async function loadRentedDays() {
 
-    rentedDays =
-        new Set();
+    rentedDays = new Set();
 
     if (!selectedCharacter?.id) {
         return;
     }
 
-    /*
-       Lấy các đơn thuê thực tế của nhân vật.
+    const today = new Date();
 
-       pending + confirmed:
-       đều được coi là đang giữ ngày để tránh
-       khách khác đặt trùng trong thời gian chờ.
-    */
+    const startDate = formatDate(
+        new Date(
+            currentYear,
+            currentMonth,
+            1
+        )
+    );
+
+    const endDate = formatDate(
+        new Date(
+            currentYear,
+            currentMonth + 1,
+            0
+        )
+    );
 
     const {
         data,
         error
-    } =
-        await supabaseClient
-            .from("rentals")
-            .select(
-                "start_date,end_date,status"
-            )
-            .eq(
-                "character_id",
-                selectedCharacter.id
-            )
-            .in(
-                "status",
-                [
-                    "pending",
-                    "confirmed"
-                ]
-            );
+    } = await supabaseClient
+        .rpc(
+            "get_rented_dates",
+            {
+                p_character_id:
+                    Number(selectedCharacter.id),
+
+                p_start_date:
+                    startDate,
+
+                p_end_date:
+                    endDate
+            }
+        );
 
     if (error) {
 
         console.error(
-            "load rented days error:",
+            "get_rented_dates error:",
             error
         );
-
-        /*
-           Không tự đánh dấu ngày là đã thuê
-           nếu không lấy được dữ liệu.
-        */
 
         return;
     }
 
-    (data || []).forEach(
-        rental => {
+    (data || []).forEach(row => {
 
-            const startDate =
-                normalizeDateString(
-                    rental.start_date
-                );
-
-            const endDate =
-                normalizeDateString(
-                    rental.end_date
-                );
-
-            if (
-                !startDate ||
-                !endDate
-            ) {
-                return;
-            }
-
-            datesBetween(
-                startDate,
-                endDate
-            ).forEach(
-                date => {
-
-                    rentedDays.add(
-                        date
-                    );
-
-                }
+        const date =
+            normalizeDateString(
+                row.rental_date
             );
 
+        if (date) {
+            rentedDays.add(date);
         }
-    );
+
+    });
+
 }
 
 
