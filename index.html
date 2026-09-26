@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta name="description" content="Cosplay Rental - Cho thuê trang phục cosplay">
+
+    <title>Cosplay Rental</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- HEADER -->
+    <header class="header">
+
+        <div class="header-inner">
+
+            <a href="#" class="logo" onclick="goHome()">
+                <span class="logo-icon">✦</span>
+                <span>Cosplay Rental</span>
+            </a>
+
+            <button class="search-button" onclick="focusSearch()">
+                🔍
+            </button>
+
+        </div>
+
+    </header>
+
+
+    <!-- MAIN -->
+    <main>
+
+        <!-- HOME -->
+        <section id="home-page">
+
+            <section class="hero">
+
+                <div class="hero-content">
+
+                    <p class="hero-small">
+                        COSPLAY RENTAL
+                    </p>
+
+                    <h1>
+                        Chọn nhân vật.<br>
+                        Chọn ngày. <span>Thuê ngay.</span>
+                    </h1>
+
+                    <p class="hero-description">
+                        Khám phá các bộ cosplay đang có sẵn
+                        và kiểm tra lịch thuê của từng nhân vật.
+                    </p>
+
+                </div>
+
+            </section>
+
+
+            <!-- SEARCH -->
+            <section class="search-section">
+
+                <div class="search-box">
+
+                    <span>🔍</span>
+
+                    <input
+                        id="search-input"
+                        type="text"
+                        placeholder="Tìm tên nhân vật..."
+                        oninput="searchCharacters()"
+                    >
+
+                </div>
+
+            </section>
+
+
+            <!-- CHARACTER -->
+            <section class="characters-section">
+
+                <div class="section-heading">
+
+                    <div>
+                        <p class="section-small">
+                            COLLECTION
+                        </p>
+
+                        <h2>
+                            Nhân vật
+                        </h2>
+                    </div>
+
+                    <span id="character-count"></span>
+
+                </div>
+
+
+                <div id="character-list" class="character-grid"></div>
+
+            </section>
+
+        </section>
+
+
+        <!-- CHARACTER DETAIL -->
+        <section id="character-page" class="character-page hidden">
+
+            <button class="back-button" onclick="goHome()">
+                ← Quay lại
+            </button>
+
+
+            <div class="character-detail">
+
+                <div class="detail-image-wrapper">
+
+                    <img
+                        id="detail-image"
+                        src=""
+                        alt=""
+                        class="detail-image"
+                    >
+
+                </div>
+
+
+                <div class="detail-info">
+
+                    <p id="detail-category" class="detail-category"></p>
+
+                    <h1 id="detail-name"></h1>
+
+                    <p id="detail-description" class="detail-description"></p>
+
+
+                    <div class="price-box">
+
+                        <span>Giá thuê</span>
+
+                        <strong id="detail-price"></strong>
+
+                    </div>
+
+
+                    <div class="included">
+
+                        <h3>Bộ cosplay gồm</h3>
+
+                        <ul id="detail-items"></ul>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- CALENDAR -->
+
+            <section class="calendar-section">
+
+                <div class="calendar-header">
+
+                    <div>
+                        <p class="section-small">
+                            AVAILABILITY
+                        </p>
+
+                        <h2>
+                            Lịch thuê
+                        </h2>
+                    </div>
+
+
+                    <div class="month-control">
+
+                        <button onclick="previousMonth()">
+                            ‹
+                        </button>
+
+                        <strong id="month-title"></strong>
+
+                        <button onclick="nextMonth()">
+                            ›
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <div class="calendar-legend">
+
+                    <span>
+                        <i class="dot available"></i>
+                        Còn trống
+                    </span>
+
+                    <span>
+                        <i class="dot rented"></i>
+                        Đã thuê
+                    </span>
+
+                </div>
+
+
+                <div id="calendar" class="calendar"></div>
+
+
+                <div class="booking-note">
+
+                    <span>💡</span>
+
+                    <p>
+                        Chọn một ngày còn trống để gửi yêu cầu thuê.
+                    </p>
+
+                </div>
+
+            </section>
+
+        </section>
+
+    </main>
+
+
+    <!-- BOOKING MODAL -->
+
+    <div id="booking-modal" class="modal hidden">
+
+        <div class="modal-overlay" onclick="closeBooking()"></div>
+
+        <div class="modal-box">
+
+            <button
+                class="modal-close"
+                onclick="closeBooking()"
+            >
+                ×
+            </button>
+
+            <p class="section-small">
+                ĐẶT THUÊ
+            </p>
+
+            <h2 id="booking-title">
+                Đặt cosplay
+            </h2>
+
+            <p id="booking-date" class="booking-date"></p>
+
+
+            <form onsubmit="submitBooking(event)">
+
+                <label>
+                    Họ và tên
+
+                    <input
+                        id="customer-name"
+                        type="text"
+                        placeholder="Nguyễn Văn A"
+                        required
+                    >
+
+                </label>
+
+
+                <label>
+                    Số điện thoại
+
+                    <input
+                        id="customer-phone"
+                        type="tel"
+                        placeholder="09xxxxxxxx"
+                        required
+                    >
+
+                </label>
+
+
+                <label>
+                    Ghi chú
+
+                    <textarea
+                        id="customer-note"
+                        placeholder="Ví dụ: muốn nhận đồ buổi sáng..."
+                    ></textarea>
+
+                </label>
+
+
+                <button class="submit-button" type="submit">
+                    Gửi yêu cầu thuê
+                </button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+
+    <!-- TOAST -->
+
+    <div id="toast" class="toast">
+        Đã gửi yêu cầu!
+    </div>
+
+
+    <script src="script.js"></script>
+
+</body>
+</html>
