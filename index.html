@@ -13,18 +13,76 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
-        .auth-area{display:flex;align-items:center;gap:8px;margin-left:10px}
-        .auth-button{border:1px solid rgba(0,0,0,.12);background:#fff;border-radius:999px;padding:9px 14px;cursor:pointer;font:inherit}
-        .auth-button.primary{background:#222;color:#fff;border-color:#222}
-        .auth-user{display:none;align-items:center;gap:8px;font-size:13px}
-        .auth-user-name{max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .auth-role{font-size:10px;padding:3px 7px;border-radius:999px;background:#eee}
-        .auth-message{margin:0 0 14px;color:#666;font-size:14px}
-        .auth-switch{border:0;background:none;text-decoration:underline;cursor:pointer;font:inherit;padding:4px}
-        @media(max-width:650px){
-            .auth-user-name{display:none}
-            .auth-button{padding:8px 11px}
-            .header-inner{gap:6px}
+        .auth-area {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: 10px;
+        }
+
+        .auth-button {
+            border: 1px solid rgba(0, 0, 0, .12);
+            background: #fff;
+            border-radius: 999px;
+            padding: 9px 14px;
+            cursor: pointer;
+            font: inherit;
+        }
+
+        .auth-button.primary {
+            background: #222;
+            color: #fff;
+            border-color: #222;
+        }
+
+        .auth-user {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .auth-user-name {
+            max-width: 130px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .auth-role {
+            font-size: 10px;
+            padding: 3px 7px;
+            border-radius: 999px;
+            background: #eee;
+        }
+
+        .auth-message {
+            margin: 0 0 14px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .auth-switch {
+            border: 0;
+            background: none;
+            text-decoration: underline;
+            cursor: pointer;
+            font: inherit;
+            padding: 4px;
+        }
+
+        @media (max-width: 650px) {
+            .auth-user-name {
+                display: none;
+            }
+
+            .auth-button {
+                padding: 8px 11px;
+            }
+
+            .header-inner {
+                gap: 6px;
+            }
         }
     </style>
 </head>
@@ -36,42 +94,64 @@
 
         <div class="header-inner">
 
-    <a href="#" class="logo" onclick="goHome()">
-        <span class="logo-icon">✦</span>
-        <span>Cosplay Rental</span>
-    </a>
+            <a href="#" class="logo" onclick="goHome()">
+                <span class="logo-icon">✦</span>
+                <span>Cosplay Rental</span>
+            </a>
 
-    <div class="header-actions">
+            <div class="header-actions">
 
-        <!-- CHỈ ADMIN MỚI THẤY -->
-        <button
-            id="admin-button"
-            class="admin-button"
-            onclick="openAdminPage()"
-            style="display: none;"
-        >
-            ⚙ Quản trị
-        </button>
-
-        <button
-            class="search-button"
-            onclick="focusSearch()"
-        >
-            🔍
-        </button>
-
-    </div>
-
-</div> class="auth-area">
-                <button id="auth-button" class="auth-button primary" onclick="openAuthModal()">
-                    Đăng nhập
+                <!-- CHỈ ADMIN MỚI THẤY -->
+                <button
+                    id="admin-button"
+                    class="admin-button"
+                    onclick="openAdminPage()"
+                    style="display: none;"
+                >
+                    ⚙ Quản trị
                 </button>
 
-                <div id="auth-user" class="auth-user">
-                    <span id="auth-user-name" class="auth-user-name"></span>
-                    <span id="auth-user-role" class="auth-role"></span>
-                    <button class="auth-button" onclick="signOutUser()">Thoát</button>
+                <button
+                    class="search-button"
+                    onclick="focusSearch()"
+                >
+                    🔍
+                </button>
+
+                <!-- AUTH -->
+                <div class="auth-area">
+
+                    <button
+                        id="auth-button"
+                        class="auth-button primary"
+                        onclick="openAuthModal()"
+                    >
+                        Đăng nhập
+                    </button>
+
+                    <div id="auth-user" class="auth-user">
+
+                        <span
+                            id="auth-user-name"
+                            class="auth-user-name"
+                        ></span>
+
+                        <span
+                            id="auth-user-role"
+                            class="auth-role"
+                        ></span>
+
+                        <button
+                            class="auth-button"
+                            onclick="signOutUser()"
+                        >
+                            Thoát
+                        </button>
+
+                    </div>
+
                 </div>
+
             </div>
 
         </div>
@@ -133,6 +213,7 @@
                 <div class="section-heading">
 
                     <div>
+
                         <p class="section-small">
                             COLLECTION
                         </p>
@@ -140,6 +221,7 @@
                         <h2>
                             Nhân vật
                         </h2>
+
                     </div>
 
                     <span id="character-count"></span>
@@ -147,7 +229,10 @@
                 </div>
 
 
-                <div id="character-list" class="character-grid"></div>
+                <div
+                    id="character-list"
+                    class="character-grid"
+                ></div>
 
             </section>
 
@@ -155,9 +240,15 @@
 
 
         <!-- CHARACTER DETAIL -->
-        <section id="character-page" class="character-page hidden">
+        <section
+            id="character-page"
+            class="character-page hidden"
+        >
 
-            <button class="back-button" onclick="goHome()">
+            <button
+                class="back-button"
+                onclick="goHome()"
+            >
                 ← Quay lại
             </button>
 
@@ -178,11 +269,17 @@
 
                 <div class="detail-info">
 
-                    <p id="detail-category" class="detail-category"></p>
+                    <p
+                        id="detail-category"
+                        class="detail-category"
+                    ></p>
 
                     <h1 id="detail-name"></h1>
 
-                    <p id="detail-description" class="detail-description"></p>
+                    <p
+                        id="detail-description"
+                        class="detail-description"
+                    ></p>
 
 
                     <div class="price-box">
@@ -208,12 +305,12 @@
 
 
             <!-- CALENDAR -->
-
             <section class="calendar-section">
 
                 <div class="calendar-header">
 
                     <div>
+
                         <p class="section-small">
                             AVAILABILITY
                         </p>
@@ -221,6 +318,7 @@
                         <h2>
                             Lịch thuê
                         </h2>
+
                     </div>
 
 
@@ -256,7 +354,10 @@
                 </div>
 
 
-                <div id="calendar" class="calendar"></div>
+                <div
+                    id="calendar"
+                    class="calendar"
+                ></div>
 
 
                 <div class="booking-note">
@@ -277,21 +378,42 @@
 
 
     <!-- AUTH MODAL -->
-    <div id="auth-modal" class="modal hidden">
+    <div
+        id="auth-modal"
+        class="modal hidden"
+    >
 
         <div class="modal-box">
 
-            <button class="modal-close" onclick="closeAuthModal()">×</button>
+            <button
+                class="modal-close"
+                onclick="closeAuthModal()"
+            >
+                ×
+            </button>
 
-            <p class="section-small">CHIYOO SHOP</p>
+            <p class="section-small">
+                CHIYOO SHOP
+            </p>
 
-            <h2 id="auth-title">Đăng nhập</h2>
+            <h2 id="auth-title">
+                Đăng nhập
+            </h2>
 
-            <p id="auth-message" class="auth-message"></p>
+            <p
+                id="auth-message"
+                class="auth-message"
+            ></p>
 
-            <form id="auth-form" onsubmit="handleAuthSubmit(event)">
+            <form
+                id="auth-form"
+                onsubmit="handleAuthSubmit(event)"
+            >
 
-                <label id="auth-name-label" class="hidden">
+                <label
+                    id="auth-name-label"
+                    class="hidden"
+                >
                     Họ và tên
 
                     <input
@@ -300,6 +422,7 @@
                         placeholder="Nguyễn Văn A"
                     >
                 </label>
+
 
                 <label>
                     Email
@@ -311,6 +434,7 @@
                         required
                     >
                 </label>
+
 
                 <label>
                     Mật khẩu
@@ -324,28 +448,56 @@
                     >
                 </label>
 
-                <button id="auth-submit" class="submit-button" type="submit">
+
+                <button
+                    id="auth-submit"
+                    class="submit-button"
+                    type="submit"
+                >
                     Đăng nhập
                 </button>
 
             </form>
 
-            <p style="margin-top:14px;text-align:center;font-size:14px;">
-                <span id="auth-switch-text">Chưa có tài khoản?</span>
-                <button id="auth-switch" class="auth-switch" type="button" onclick="toggleAuthMode()">
+
+            <p
+                style="
+                    margin-top:14px;
+                    text-align:center;
+                    font-size:14px;
+                "
+            >
+
+                <span id="auth-switch-text">
+                    Chưa có tài khoản?
+                </span>
+
+                <button
+                    id="auth-switch"
+                    class="auth-switch"
+                    type="button"
+                    onclick="toggleAuthMode()"
+                >
                     Đăng ký
                 </button>
+
             </p>
 
         </div>
+
     </div>
 
 
     <!-- BOOKING MODAL -->
+    <div
+        id="booking-modal"
+        class="modal hidden"
+    >
 
-    <div id="booking-modal" class="modal hidden">
-
-        <div class="modal-overlay" onclick="closeBooking()"></div>
+        <div
+            class="modal-overlay"
+            onclick="closeBooking()"
+        ></div>
 
         <div class="modal-box">
 
@@ -364,7 +516,10 @@
                 Đặt cosplay
             </h2>
 
-            <p id="booking-date" class="booking-date"></p>
+            <p
+                id="booking-date"
+                class="booking-date"
+            ></p>
 
 
             <form onsubmit="submitBooking(event)">
@@ -378,7 +533,6 @@
                         placeholder="Nguyễn Văn A"
                         required
                     >
-
                 </label>
 
 
@@ -391,7 +545,6 @@
                         placeholder="09xxxxxxxx"
                         required
                     >
-
                 </label>
 
 
@@ -406,7 +559,10 @@
                 </label>
 
 
-                <button class="submit-button" type="submit">
+                <button
+                    class="submit-button"
+                    type="submit"
+                >
                     Gửi yêu cầu thuê
                 </button>
 
@@ -418,8 +574,10 @@
 
 
     <!-- TOAST -->
-
-    <div id="toast" class="toast">
+    <div
+        id="toast"
+        class="toast"
+    >
         Đã gửi yêu cầu!
     </div>
 
