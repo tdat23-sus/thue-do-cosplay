@@ -1006,18 +1006,12 @@ function openCharacter(id) {
        ĐỊA CHỈ
     ========================= */
 
-    const detailAddress =
-        document.getElementById(
-            "detail-address"
-        );
+    const detailAddress = document.getElementById("detail-address");
 
-    if (detailAddress) {
-
-        detailAddress.textContent =
-            character.address ||
-            "Chưa cập nhật địa chỉ";
-
-    }
+if (detailAddress) {
+    detailAddress.textContent =
+        character.address || "Chưa cập nhật địa chỉ";
+}
 
 
     /* =========================
