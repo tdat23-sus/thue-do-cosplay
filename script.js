@@ -270,14 +270,17 @@ async function handleAuthSubmit(event) {
 
                         password,
 
-                        options: {
+                       options: {
 
-                            data: {
-                                full_name:
-                                    name
-                            }
+    data: {
+        full_name:
+            name
+    },
 
-                        }
+    emailRedirectTo:
+        "http://localhost:3000/"
+
+}
 
                     });
 
