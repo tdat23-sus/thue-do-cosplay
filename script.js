@@ -32,6 +32,8 @@ let characters = [];
    STATE
 ========================================= */
 
+let selectedBookingDay = null;
+
 let selectedCharacter = null;
 
 let currentMonth = 8;
