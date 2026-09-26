@@ -1568,53 +1568,17 @@ initAdmin();
 // RENTAL MANAGEMENT
 // =========================
 
-async function loadRentalRequests() {
-    const box = document.getElementById("rental-request-list");
-    if (!box) return;
+// Tạo thanh lọc/thống kê ngay trong trang, không cần sửa admin.html.
+// Dùng các cột hiện có trong rentals và profiles; thông tin liên hệ bổ sung
+// nếu có trong customer_note sẽ được hiển thị nguyên văn đã escape HTML.
 
-    box.innerHTML = "<p>Đang tải đơn...</p>";
+let rentalRequestsCache = [];
+let rentalStatusFilter = "all";
+let rentalSearchTerm = "";
 
-    const { data: rentals, error } = await db
-        .from("rentals")
-        .select(`
-            id,
-            user_id,
-            character_id,
-            start_date,
-            end_date,
-            status,
-            customer_note,
-            created_at
-        `)
-        .order("created_at", { ascending: false });
-
-    if (error) {
-        console.error("RENTALS ERROR:", error);
-        box.innerHTML = "<p>Không thể tải danh sách đơn.</p>";
-        return;
-    }
-
-    if (!rentals?.length) {
-        box.innerHTML = "<p>Chưa có yêu cầu đặt lịch.</p>";
-        return;
-    }
-
-    const userIds = [...new Set(rentals.map(r => r.user_id).filter(Boolean))];
-    const characterIds = [...new Set(rentals.map(r => r.character_id).filter(Boolean))];
-
-    const [{ data: profiles }, { data: chars }] = await Promise.all([
-        userIds.length
-            ? db.from("profiles").select("id,full_name,phone").in("id", userIds)
-            : Promise.resolve({ data: [] }),
-        characterIds.length
-            ? db.from("characters").select("id,name,image_url").in("id", characterIds)
-            : Promise.resolve({ data: [] })
-    ]);
-
-    const profileMap = new Map((profiles || []).map(p => [String(p.id), p]));
-    const charMap = new Map((chars || []).map(c => [String(c.id), c]));
-
-    const statusMap = {
+function rentalStatusInfo(value) {
+    const status = String(value || "pending").toLowerCase();
+    const map = {
         pending: ["Đang chờ xác nhận", "pending"],
         confirmed: ["Đã xác nhận", "confirmed"],
         cancelled: ["Đã hủy", "cancelled"],
@@ -1624,53 +1588,202 @@ async function loadRentalRequests() {
         completed: ["Hoàn tất", "completed"],
         returned: ["Đã trả đồ", "completed"]
     };
+    return map[status] || [status || "Chưa rõ", "pending"];
+}
 
-    box.innerHTML = rentals.map(rental => {
-        const profile = profileMap.get(String(rental.user_id));
-        const character = charMap.get(String(rental.character_id));
+function ensureRentalControls(box) {
+    let controls = document.getElementById("rental-admin-controls");
+    if (!controls) {
+        controls = document.createElement("section");
+        controls.id = "rental-admin-controls";
+        controls.className = "rental-admin-controls";
+        controls.innerHTML = `
+            <div class="rental-admin-stats" id="rental-admin-stats"></div>
+            <div class="rental-admin-filters" style="display:flex;gap:10px;flex-wrap:wrap;margin:14px 0;">
+                <input id="rental-admin-search" type="search"
+                    placeholder="Tìm tên khách, nhân vật, ghi chú, mã đơn..."
+                    aria-label="Tìm đơn thuê"
+                    style="flex:1;min-width:220px;padding:10px;border:1px solid #ccc;border-radius:8px;">
+                <select id="rental-admin-status-filter" aria-label="Lọc trạng thái"
+                    style="min-width:190px;padding:10px;border:1px solid #ccc;border-radius:8px;">
+                    <option value="all">Tất cả trạng thái</option>
+                    <option value="pending">Đang chờ xác nhận</option>
+                    <option value="confirmed">Đã xác nhận</option>
+                    <option value="cancelled">Đã hủy</option>
+                    <option value="rejected">Từ chối</option>
+                    <option value="completed">Hoàn tất / Đã trả</option>
+                </select>
+                <button type="button" id="rental-admin-refresh" style="padding:10px 14px;">↻ Tải lại</button>
+            </div>`;
+        box.parentNode.insertBefore(controls, box);
+        document.getElementById("rental-admin-search").addEventListener("input", e => {
+            rentalSearchTerm = e.target.value.trim().toLowerCase();
+            renderRentalRequests();
+        });
+        document.getElementById("rental-admin-status-filter").addEventListener("change", e => {
+            rentalStatusFilter = e.target.value;
+            renderRentalRequests();
+        });
+        document.getElementById("rental-admin-refresh").addEventListener("click", loadRentalRequests);
+    }
+}
+
+function renderRentalStats() {
+    const el = document.getElementById("rental-admin-stats");
+    if (!el) return;
+    const norm = s => String(s || "pending").toLowerCase();
+    const count = statuses => rentalRequestsCache.filter(r => statuses.includes(norm(r.status))).length;
+    const cards = [
+        ["Tổng yêu cầu", rentalRequestsCache.length],
+        ["Chờ xác nhận", count(["pending"])],
+        ["Đã xác nhận", count(["confirmed"])],
+        ["Đã hủy / Từ chối", count(["cancelled", "canceled", "rejected", "declined"])],
+        ["Hoàn tất", count(["completed", "returned"])]
+    ];
+    el.innerHTML = cards.map(([label, value]) => `
+        <div style="display:inline-flex;flex-direction:column;gap:4px;padding:12px 16px;margin:0 8px 8px 0;border:1px solid #e5e7eb;border-radius:10px;background:#fff;">
+            <span style="font-size:13px;color:#555">${escapeHtml(label)}</span>
+            <strong style="font-size:22px">${value}</strong>
+        </div>`).join("");
+}
+
+function renderRentalRequests() {
+    const box = document.getElementById("rental-request-list");
+    if (!box) return;
+
+    const statusAliases = {
+        completed: ["completed", "returned"],
+        cancelled: ["cancelled", "canceled"],
+        rejected: ["rejected", "declined"]
+    };
+
+    const filtered = rentalRequestsCache.filter(r => {
+        const status = String(r.status || "pending").toLowerCase();
+        const allowed = statusAliases[rentalStatusFilter] || [rentalStatusFilter];
+        if (rentalStatusFilter !== "all" && !allowed.includes(status)) return false;
+
+        const profile = r._profile || {};
+        const character = r._character || {};
+        const haystack = [
+            r.id, r.user_id, r.start_date, r.end_date, r.status,
+            r.customer_note, profile.full_name, profile.phone, character.name
+        ].join(" ").toLowerCase();
+        return !rentalSearchTerm || haystack.includes(rentalSearchTerm);
+    });
+
+    if (!filtered.length) {
+        box.innerHTML = `<p>${rentalRequestsCache.length ? "Không có đơn nào khớp bộ lọc." : "Chưa có yêu cầu đặt lịch."}</p>`;
+        return;
+    }
+
+    box.innerHTML = filtered.map(rental => {
+        const profile = rental._profile || {};
+        const character = rental._character || {};
+        const [statusText, statusClass] = rentalStatusInfo(rental.status);
         const status = String(rental.status || "pending").toLowerCase();
-        const [statusText, statusClass] = statusMap[status] || [status, "pending"];
         const note = rental.customer_note || "";
+        const dateText = `${escapeHtml(rental.start_date || "Chưa có ngày")}${rental.end_date && rental.end_date !== rental.start_date ? ` → ${escapeHtml(rental.end_date)}` : ""}`;
+        const createdText = rental.created_at
+            ? new Date(rental.created_at).toLocaleString("vi-VN")
+            : "Không rõ";
 
         return `
             <article class="admin-rental-card">
                 <div class="admin-rental-head">
                     <div>
-                        <h3>${escapeHtml(character?.name || "Nhân vật không còn tồn tại")}</h3>
-                        <p><strong>Ngày:</strong> ${escapeHtml(rental.start_date)}${rental.end_date !== rental.start_date ? ` → ${escapeHtml(rental.end_date)}` : ""}</p>
-                        <p><strong>Gửi lúc:</strong> ${escapeHtml(new Date(rental.created_at).toLocaleString("vi-VN"))}</p>
+                        <h3>${escapeHtml(character.name || "Nhân vật không còn tồn tại")}</h3>
+                        <p><strong>Ngày thuê:</strong> ${dateText}</p>
+                        <p><strong>Gửi lúc:</strong> ${escapeHtml(createdText)}</p>
+                        <p><strong>Mã đơn:</strong> <code>${escapeHtml(rental.id || "")}</code></p>
                     </div>
-                    <span class="admin-rental-status ${statusClass}">${escapeHtml(statusText)}</span>
+                    <span class="admin-rental-status ${escapeHtml(statusClass)}">${escapeHtml(statusText)}</span>
                 </div>
-
                 <div class="admin-rental-customer">
-                    <p><strong>Khách:</strong> ${escapeHtml(profile?.full_name || "Chưa có tên")}</p>
-                    <p><strong>User ID:</strong> ${escapeHtml(rental.user_id || "")}</p>
-                    ${note ? `<pre>${escapeHtml(note)}</pre>` : ""}
+                    <p><strong>Khách hàng:</strong> ${escapeHtml(profile.full_name || "Chưa có tên")}</p>
+                    ${profile.phone ? `<p><strong>Điện thoại/Zalo:</strong> <a href="tel:${escapeHtml(profile.phone)}">${escapeHtml(profile.phone)}</a></p>` : ""}
+                    ${rental.user_id ? `<p><strong>User ID:</strong> <code>${escapeHtml(rental.user_id)}</code></p>` : ""}
+                    ${note ? `<div><strong>Thông tin liên hệ / ghi chú của khách:</strong><pre style="white-space:pre-wrap;overflow-wrap:anywhere;">${escapeHtml(note)}</pre></div>` : `<p><em>Khách chưa để lại ghi chú hoặc thông tin liên hệ trong đơn.</em></p>`}
                 </div>
-
                 <div class="admin-rental-actions">
                     ${status === "pending" ? `
-                        <button type="button" onclick="updateRentalStatus('${escapeHtml(rental.id)}','confirmed')">Xác nhận</button>
-                        <button type="button" class="danger" onclick="updateRentalStatus('${escapeHtml(rental.id)}','rejected')">Từ chối</button>
+                        <button type="button" data-rental-action="confirmed" data-rental-id="${escapeHtml(rental.id)}">Xác nhận</button>
+                        <button type="button" class="danger" data-rental-action="rejected" data-rental-id="${escapeHtml(rental.id)}">Từ chối</button>
                     ` : ""}
-                    ${["pending","confirmed"].includes(status) ? `
-                        <button type="button" class="danger" onclick="updateRentalStatus('${escapeHtml(rental.id)}','cancelled')">Hủy đơn</button>
+                    ${["pending", "confirmed"].includes(status) ? `
+                        <button type="button" class="danger" data-rental-action="cancelled" data-rental-id="${escapeHtml(rental.id)}">Hủy đơn</button>
+                    ` : ""}
+                    ${["confirmed"].includes(status) ? `
+                        <button type="button" data-rental-action="completed" data-rental-id="${escapeHtml(rental.id)}">Đánh dấu hoàn tất</button>
                     ` : ""}
                 </div>
-            </article>
-        `;
+            </article>`;
     }).join("");
+}
+
+async function loadRentalRequests() {
+    const box = document.getElementById("rental-request-list");
+    if (!box) return;
+    ensureRentalControls(box);
+    box.innerHTML = "<p>Đang tải đơn...</p>";
+
+    const { data: rentals, error } = await db
+        .from("rentals")
+        .select("id,user_id,character_id,start_date,end_date,status,customer_note,created_at")
+        .order("created_at", { ascending: false });
+
+    if (error) {
+        console.error("RENTALS ERROR:", error);
+        box.innerHTML = `<p class="admin-message error" style="display:block">Không thể tải danh sách đơn: ${escapeHtml(error.message)}</p>`;
+        return;
+    }
+
+    if (!rentals || !rentals.length) {
+        rentalRequestsCache = [];
+        renderRentalStats();
+        renderRentalRequests();
+        return;
+    }
+
+    const userIds = [...new Set(rentals.map(r => r.user_id).filter(Boolean))];
+    const characterIds = [...new Set(rentals.map(r => r.character_id).filter(Boolean))];
+
+    const [profilesResult, charsResult] = await Promise.all([
+        userIds.length
+            ? db.from("profiles").select("id,full_name,phone").in("id", userIds)
+            : Promise.resolve({ data: [], error: null }),
+        characterIds.length
+            ? db.from("characters").select("id,name,image_url").in("id", characterIds)
+            : Promise.resolve({ data: [], error: null })
+    ]);
+
+    if (profilesResult.error) console.warn("Không tải được hồ sơ khách:", profilesResult.error);
+    if (charsResult.error) console.warn("Không tải được thông tin nhân vật:", charsResult.error);
+
+    const profileMap = new Map((profilesResult.data || []).map(p => [String(p.id), p]));
+    const charMap = new Map((charsResult.data || []).map(c => [String(c.id), c]));
+
+    rentalRequestsCache = rentals.map(r => ({
+        ...r,
+        _profile: profileMap.get(String(r.user_id)) || {},
+        _character: charMap.get(String(r.character_id)) || {}
+    }));
+
+    renderRentalStats();
+    renderRentalRequests();
 }
 
 async function updateRentalStatus(rentalId, status) {
     const labels = {
         confirmed: "xác nhận đơn này",
         rejected: "từ chối đơn này",
-        cancelled: "hủy đơn này"
+        cancelled: "hủy đơn này",
+        completed: "đánh dấu đơn này đã hoàn tất"
     };
-
-    if (!window.confirm(`Bạn chắc chắn muốn ${labels[status] || "cập nhật đơn này"}?`)) return;
+    if (!labels[status]) {
+        showMessage("Trạng thái không hợp lệ.", "error");
+        return;
+    }
+    if (!window.confirm(`Bạn chắc chắn muốn ${labels[status]}?`)) return;
 
     const { error } = await db
         .from("rentals")
@@ -1687,12 +1800,39 @@ async function updateRentalStatus(rentalId, status) {
     await loadRentalRequests();
 }
 
+const rentalListElement = document.getElementById("rental-request-list");
+if (rentalListElement) {
+    rentalListElement.addEventListener("click", event => {
+        const button = event.target.closest("button[data-rental-action]");
+        if (!button) return;
+        updateRentalStatus(button.dataset.rentalId, button.dataset.rentalAction);
+    });
+}
+
 window.loadRentalRequests = loadRentalRequests;
 window.updateRentalStatus = updateRentalStatus;
 
+// Kiểm tra quyền admin trước khi tải dữ liệu thuê.
+// Bản checkAdmin gốc vẫn kiểm tra session và role trong profiles.
 const originalCheckAdmin = checkAdmin;
 checkAdmin = async function() {
     const ok = await originalCheckAdmin();
     if (ok) await loadRentalRequests();
     return ok;
 };
+
+// Realtime: cập nhật danh sách khi có thay đổi trên rentals.
+// Nếu Realtime chưa bật ở Supabase, trang vẫn hoạt động qua nút Tải lại.
+let rentalRealtimeChannel = null;
+async function startRentalRealtime() {
+    if (rentalRealtimeChannel || !db?.channel) return;
+    rentalRealtimeChannel = db
+        .channel("admin-rentals-live")
+        .on("postgres_changes", {
+            event: "*",
+            schema: "public",
+            table: "rentals"
+        }, () => loadRentalRequests())
+        .subscribe();
+}
+startRentalRealtime();
