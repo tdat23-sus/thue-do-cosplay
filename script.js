@@ -1500,85 +1500,341 @@ function closeBooking() {
    SUBMIT BOOKING
 ========================================= */
 
-function submitBooking(event) {
+async function submitBooking(event) {
 
     event.preventDefault();
 
+
+    /* =========================
+       CHECK LOGIN
+    ========================= */
 
     if (!currentUser) {
 
         closeBooking();
 
-
-        pendingBookingDay =
-            null;
-
+        pendingBookingDay = null;
 
         openAuthModal(
             "Phiên đăng nhập đã hết. Vui lòng đăng nhập lại."
         );
 
+        return;
+    }
+
+
+    /* =========================
+       CHECK CHARACTER
+    ========================= */
+
+    if (!selectedCharacter) {
+
+        showToast(
+            "Không xác định được nhân vật."
+        );
 
         return;
     }
 
 
+    /* =========================
+       GET FORM DATA
+    ========================= */
+
     const name =
         document
-            .getElementById(
-                "customer-name"
-            )
+            .getElementById("customer-name")
             .value
             .trim();
 
 
     const phone =
         document
-            .getElementById(
-                "customer-phone"
-            )
+            .getElementById("customer-phone")
             .value
             .trim();
 
 
     const note =
         document
-            .getElementById(
-                "customer-note"
-            )
+            .getElementById("customer-note")
             .value
             .trim();
 
 
-    console.log(
-        "BOOKING PREVIEW:",
-        {
+    /* =========================
+       CHECK REQUIRED
+    ========================= */
 
-            user_id:
-                currentUser.id,
+    if (!name) {
 
-            character:
-                selectedCharacter.name,
+        showToast(
+            "Vui lòng nhập họ tên."
+        );
 
-            name,
+        return;
+    }
 
-            phone,
 
-            note
+    if (!phone) {
+
+        showToast(
+            "Vui lòng nhập số điện thoại."
+        );
+
+        return;
+    }
+
+
+    /* =========================
+       CREATE DATE
+       YYYY-MM-DD
+    ========================= */
+
+    const month =
+        String(currentMonth + 1)
+            .padStart(2, "0");
+
+
+    const day =
+        String(
+            pendingBookingDay ||
+            Number(
+                document
+                    .getElementById("booking-date")
+                    ?.textContent
+                    ?.match(/\d+/)?.[0]
+            )
+        ).padStart(2, "0");
+
+
+    const startDate =
+        `${currentYear}-${month}-${day}`;
+
+
+    /*
+       Hiện tại hệ thống cho thuê theo ngày.
+       Vì vậy start_date và end_date
+       sẽ cùng là ngày khách chọn.
+    */
+
+    const endDate =
+        startDate;
+
+
+    /* =========================
+       DISABLE BUTTON
+    ========================= */
+
+    const submitButton =
+        event.target.querySelector(
+            'button[type="submit"]'
+        );
+
+
+    if (submitButton) {
+
+        submitButton.disabled = true;
+
+        submitButton.textContent =
+            "Đang gửi...";
+    }
+
+
+    try {
+
+        /* =========================
+           UPDATE PROFILE
+        ========================= */
+
+        const {
+            error: profileError
+        } =
+            await supabaseClient
+                .from("profiles")
+                .update({
+
+                    full_name:
+                        name,
+
+                    phone:
+                        phone
+
+                })
+                .eq(
+                    "id",
+                    currentUser.id
+                );
+
+
+        if (profileError) {
+
+            console.error(
+                "PROFILE UPDATE ERROR:",
+                profileError
+            );
+
+            /*
+               Không dừng đơn ở đây.
+               Nếu profile update lỗi,
+               vẫn thử tạo rental.
+            */
+        }
+
+
+        /* =========================
+           CUSTOMER NOTE
+        ========================= */
+
+        const customerNote =
+            [
+                `Họ tên: ${name}`,
+                `SĐT: ${phone}`,
+                note
+                    ? `Ghi chú: ${note}`
+                    : ""
+            ]
+                .filter(Boolean)
+                .join("\n");
+
+
+        /* =========================
+           INSERT RENTAL
+        ========================= */
+
+        const {
+            data,
+            error
+        } =
+            await supabaseClient
+                .from("rentals")
+                .insert({
+
+                    user_id:
+                        currentUser.id,
+
+                    character_id:
+                        selectedCharacter.id,
+
+                    start_date:
+                        startDate,
+
+                    end_date:
+                        endDate,
+
+                    customer_note:
+                        customerNote,
+
+                    status:
+                        "pending"
+
+                })
+                .select()
+                .single();
+
+
+        if (error)
+            throw error;
+
+
+        console.log(
+            "BOOKING CREATED:",
+            data
+        );
+
+
+        /* =========================
+           CLOSE MODAL
+        ========================= */
+
+        closeBooking();
+
+
+        /* =========================
+           SUCCESS
+        ========================= */
+
+        showToast(
+            "Đặt thuê thành công! Shop sẽ liên hệ với bạn."
+        );
+
+
+        /* =========================
+           RESET FORM
+        ========================= */
+
+        event.target.reset();
+
+
+        /*
+           Cập nhật thông tin profile
+           trong bộ nhớ hiện tại.
+        */
+
+        if (currentProfile) {
+
+            currentProfile.full_name =
+                name;
+
+            currentProfile.phone =
+                phone;
 
         }
-    );
 
 
-    closeBooking();
+        /*
+           Tạm thời đánh dấu ngày này đã có đơn
+           để giao diện lịch cập nhật ngay.
+        */
+
+        if (
+            !selectedCharacter.rentedDays
+                .includes(
+                    Number(day)
+                )
+        ) {
+
+            selectedCharacter.rentedDays
+                .push(
+                    Number(day)
+                );
+
+        }
 
 
-    showToast(
-        "Đã nhận thông tin. Bước tiếp theo sẽ lưu đơn vào Supabase."
-    );
+        renderCalendar();
 
 
-    event.target.reset();
+    } catch (error) {
+
+        console.error(
+            "BOOKING ERROR:",
+            error
+        );
+
+
+        showToast(
+            "Không thể tạo đơn. Vui lòng thử lại."
+        );
+
+
+    } finally {
+
+        /* =========================
+           ENABLE BUTTON
+        ========================= */
+
+        if (submitButton) {
+
+            submitButton.disabled =
+                false;
+
+            submitButton.textContent =
+                "Gửi yêu cầu";
+
+        }
+
+    }
 
 }
 
