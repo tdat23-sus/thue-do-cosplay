@@ -1,25 +1,63 @@
-const SUPABASE_URL = "https://rydkgmtlmhjftbwukzdn.supabase.co";
-const SUPABASE_KEY = "sb_publishable_wIOEpyFJLjH_aWSwnUIF-g_WCvEUOot";
+const SUPABASE_URL =
+    "https://rydkgmtlmhjftbwukzdn.supabase.co";
+
+const SUPABASE_KEY =
+    "sb_publishable_wIOEpyFJLjH_aWSwnUIF-g_WCvEUOot";
 
 const { createClient } = supabase;
-const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const db = createClient(
+    SUPABASE_URL,
+    SUPABASE_KEY
+);
 
 const BUCKET = "character-images";
 
 let selectedFile = null;
+let editingCharacterId = null;
+let editingCharacterImageUrl = null;
+
+let charactersCache = [];
 
 // =========================
 // DOM
 // =========================
 
-const accessNotice = document.getElementById("access-notice");
-const adminContent = document.getElementById("admin-content");
-const characterForm = document.getElementById("character-form");
-const imageInput = document.getElementById("character-image");
-const imagePreview = document.getElementById("image-preview");
-const characterList = document.getElementById("character-list");
-const logoutButton = document.getElementById("logout-button");
-const shopButton = document.getElementById("shop-button");
+const accessNotice =
+    document.getElementById("access-notice");
+
+const adminContent =
+    document.getElementById("admin-content");
+
+const characterForm =
+    document.getElementById("character-form");
+
+const imageInput =
+    document.getElementById("character-image");
+
+const imagePreview =
+    document.getElementById("image-preview");
+
+const characterList =
+    document.getElementById("character-list");
+
+const logoutButton =
+    document.getElementById("logout-button");
+
+const shopButton =
+    document.getElementById("shop-button");
+
+const formTitle =
+    document.getElementById("character-form-title");
+
+const submitButton =
+    document.getElementById("submit-character-button");
+
+const cancelEditButton =
+    document.getElementById("cancel-edit-button");
+
+const currentImageNote =
+    document.getElementById("current-image-note");
 
 // =========================
 // HELPER
@@ -34,8 +72,14 @@ function escapeHtml(value) {
         .replace(/'/g, "&#039;");
 }
 
-function showMessage(message, type = "success") {
-    const box = document.getElementById("admin-message");
+function showMessage(
+    message,
+    type = "success"
+) {
+    const box =
+        document.getElementById(
+            "admin-message"
+        );
 
     if (!box) {
         alert(message);
@@ -43,7 +87,10 @@ function showMessage(message, type = "success") {
     }
 
     box.textContent = message;
-    box.className = "admin-message " + type;
+
+    box.className =
+        "admin-message " + type;
+
     box.style.display = "block";
 
     setTimeout(() => {
@@ -56,12 +103,14 @@ function showMessage(message, type = "success") {
 // =========================
 
 async function checkAdmin() {
+
     const {
         data: { session },
         error: sessionError
     } = await db.auth.getSession();
 
     if (sessionError) {
+
         console.error(sessionError);
 
         showAccessDenied(
@@ -72,6 +121,7 @@ async function checkAdmin() {
     }
 
     if (!session) {
+
         showAccessDenied(
             "Bạn chưa đăng nhập. Vui lòng đăng nhập tài khoản admin."
         );
@@ -84,11 +134,17 @@ async function checkAdmin() {
         error
     } = await db
         .from("profiles")
-        .select("id, full_name, role")
-        .eq("id", session.user.id)
+        .select(
+            "id, full_name, role"
+        )
+        .eq(
+            "id",
+            session.user.id
+        )
         .single();
 
     if (error) {
+
         console.error(error);
 
         showAccessDenied(
@@ -99,6 +155,7 @@ async function checkAdmin() {
     }
 
     if (profile.role !== "admin") {
+
         showAccessDenied(
             "Tài khoản này không có quyền admin."
         );
@@ -107,17 +164,22 @@ async function checkAdmin() {
     }
 
     if (accessNotice) {
-        accessNotice.style.display = "none";
+        accessNotice.style.display =
+            "none";
     }
 
     if (adminContent) {
-        adminContent.style.display = "block";
+        adminContent.style.display =
+            "block";
     }
 
     const adminName =
-        document.getElementById("admin-name");
+        document.getElementById(
+            "admin-name"
+        );
 
     if (adminName) {
+
         adminName.textContent =
             profile.full_name ||
             session.user.email ||
@@ -128,14 +190,21 @@ async function checkAdmin() {
 }
 
 function showAccessDenied(
-    message = "Bạn không có quyền truy cập trang quản trị."
+    message =
+        "Bạn không có quyền truy cập trang quản trị."
 ) {
+
     if (accessNotice) {
-        accessNotice.style.display = "block";
+
+        accessNotice.style.display =
+            "block";
 
         accessNotice.innerHTML = `
             <div style="padding:20px;text-align:center;">
-                <h2>Không có quyền truy cập</h2>
+
+                <h2>
+                    Không có quyền truy cập
+                </h2>
 
                 <p>
                     ${escapeHtml(message)}
@@ -147,12 +216,14 @@ function showAccessDenied(
                 >
                     Về trang chủ
                 </button>
+
             </div>
         `;
     }
 
     if (adminContent) {
-        adminContent.style.display = "none";
+        adminContent.style.display =
+            "none";
     }
 }
 
@@ -161,24 +232,36 @@ function showAccessDenied(
 // =========================
 
 if (imageInput) {
+
     imageInput.addEventListener(
         "change",
         function () {
 
-            const file = this.files?.[0];
+            const file =
+                this.files?.[0];
 
             if (!file) {
+
                 selectedFile = null;
 
-                if (imagePreview) {
-                    imagePreview.style.display = "none";
-                    imagePreview.src = "";
+                if (!editingCharacterId) {
+
+                    if (imagePreview) {
+                        imagePreview.style.display =
+                            "none";
+
+                        imagePreview.src = "";
+                    }
                 }
 
                 return;
             }
 
-            if (!file.type.startsWith("image/")) {
+            if (
+                !file.type.startsWith(
+                    "image/"
+                )
+            ) {
 
                 showMessage(
                     "Vui lòng chọn file hình ảnh.",
@@ -186,6 +269,7 @@ if (imageInput) {
                 );
 
                 this.value = "";
+
                 selectedFile = null;
 
                 return;
@@ -193,18 +277,21 @@ if (imageInput) {
 
             selectedFile = file;
 
-            const reader = new FileReader();
+            const reader =
+                new FileReader();
 
-            reader.onload = function (event) {
+            reader.onload =
+                function (event) {
 
-                if (imagePreview) {
-                    imagePreview.src =
-                        event.target.result;
+                    if (imagePreview) {
 
-                    imagePreview.style.display =
-                        "block";
-                }
-            };
+                        imagePreview.src =
+                            event.target.result;
+
+                        imagePreview.style.display =
+                            "block";
+                    }
+                };
 
             reader.readAsDataURL(file);
         }
@@ -215,20 +302,28 @@ if (imageInput) {
 // UPLOAD IMAGE
 // =========================
 
-async function uploadCharacterImage(file) {
+async function uploadCharacterImage(
+    file
+) {
 
     if (!file) {
-        throw new Error("Chưa chọn ảnh.");
+
+        throw new Error(
+            "Chưa chọn ảnh."
+        );
     }
 
     const extension =
         file.name
             .split(".")
             .pop()
-            ?.toLowerCase() || "jpg";
+            ?.toLowerCase() ||
+        "jpg";
 
     const safeExtension =
-        /^[a-z0-9]+$/.test(extension)
+        /^[a-z0-9]+$/.test(
+            extension
+        )
             ? extension
             : "jpg";
 
@@ -256,6 +351,7 @@ async function uploadCharacterImage(file) {
         );
 
     if (uploadError) {
+
         console.error(
             "Upload error:",
             uploadError
@@ -268,9 +364,14 @@ async function uploadCharacterImage(file) {
         data: publicUrlData
     } = db.storage
         .from(BUCKET)
-        .getPublicUrl(filePath);
+        .getPublicUrl(
+            filePath
+        );
 
-    if (!publicUrlData?.publicUrl) {
+    if (
+        !publicUrlData?.publicUrl
+    ) {
+
         throw new Error(
             "Không lấy được URL ảnh."
         );
@@ -283,10 +384,12 @@ async function uploadCharacterImage(file) {
 }
 
 // =========================
-// GET STORAGE PATH FROM URL
+// GET STORAGE PATH
 // =========================
 
-function getStoragePathFromUrl(imageUrl) {
+function getStoragePathFromUrl(
+    imageUrl
+) {
 
     if (!imageUrl) {
         return null;
@@ -298,7 +401,9 @@ function getStoragePathFromUrl(imageUrl) {
             `/storage/v1/object/public/${BUCKET}/`;
 
         const index =
-            imageUrl.indexOf(marker);
+            imageUrl.indexOf(
+                marker
+            );
 
         if (index === -1) {
             return null;
@@ -306,7 +411,8 @@ function getStoragePathFromUrl(imageUrl) {
 
         return decodeURIComponent(
             imageUrl.substring(
-                index + marker.length
+                index +
+                marker.length
             )
         );
 
@@ -322,7 +428,260 @@ function getStoragePathFromUrl(imageUrl) {
 }
 
 // =========================
-// ADD CHARACTER
+// RESET FORM
+// =========================
+
+function resetCharacterForm() {
+
+    editingCharacterId = null;
+
+    editingCharacterImageUrl =
+        null;
+
+    selectedFile = null;
+
+    if (characterForm) {
+        characterForm.reset();
+    }
+
+    const activeCheckbox =
+        document.getElementById(
+            "character-active"
+        );
+
+    if (activeCheckbox) {
+        activeCheckbox.checked = true;
+    }
+
+    if (imageInput) {
+        imageInput.value = "";
+    }
+
+    if (imagePreview) {
+
+        imagePreview.src = "";
+
+        imagePreview.style.display =
+            "none";
+    }
+
+    if (currentImageNote) {
+        currentImageNote.style.display =
+            "none";
+    }
+
+    if (formTitle) {
+
+        formTitle.textContent =
+            "➕ Thêm nhân vật";
+
+        formTitle.classList.remove(
+            "edit-mode-title"
+        );
+    }
+
+    if (submitButton) {
+
+        submitButton.textContent =
+            "Upload ảnh & lưu nhân vật";
+    }
+
+    if (cancelEditButton) {
+
+        cancelEditButton.style.display =
+            "none";
+    }
+}
+
+// =========================
+// EDIT CHARACTER
+// =========================
+
+function editCharacter(id) {
+
+    const character =
+        charactersCache.find(
+            item =>
+                String(item.id) ===
+                String(id)
+        );
+
+    if (!character) {
+
+        showMessage(
+            "Không tìm thấy nhân vật.",
+            "error"
+        );
+
+        return;
+    }
+
+    editingCharacterId =
+        character.id;
+
+    editingCharacterImageUrl =
+        character.image_url ||
+        null;
+
+    selectedFile = null;
+
+    // =====================
+    // FILL FORM
+    // =====================
+
+    const nameInput =
+        document.getElementById(
+            "character-name"
+        );
+
+    const categoryInput =
+        document.getElementById(
+            "character-category"
+        );
+
+    const addressInput =
+        document.getElementById(
+            "character-address"
+        );
+
+    const descriptionInput =
+        document.getElementById(
+            "character-description"
+        );
+
+    const itemsInput =
+        document.getElementById(
+            "character-items"
+        );
+
+    const activeInput =
+        document.getElementById(
+            "character-active"
+        );
+
+    if (nameInput) {
+        nameInput.value =
+            character.name || "";
+    }
+
+    if (categoryInput) {
+        categoryInput.value =
+            character.category || "";
+    }
+
+    if (addressInput) {
+        addressInput.value =
+            character.address || "";
+    }
+
+    if (descriptionInput) {
+        descriptionInput.value =
+            character.description || "";
+    }
+
+    if (itemsInput) {
+
+        const items =
+            Array.isArray(
+                character.included_items
+            )
+                ? character.included_items
+                : [];
+
+        itemsInput.value =
+            items.join("\n");
+    }
+
+    if (activeInput) {
+
+        activeInput.checked =
+            character.is_active !== false;
+    }
+
+    // =====================
+    // CURRENT IMAGE
+    // =====================
+
+    if (character.image_url) {
+
+        if (imagePreview) {
+
+            imagePreview.src =
+                character.image_url;
+
+            imagePreview.style.display =
+                "block";
+        }
+
+        if (currentImageNote) {
+
+            currentImageNote.style.display =
+                "block";
+
+            currentImageNote.textContent =
+                "Đang sử dụng ảnh hiện tại. " +
+                "Chọn ảnh mới nếu muốn thay ảnh.";
+        }
+    }
+
+    // =====================
+    // EDIT UI
+    // =====================
+
+    if (formTitle) {
+
+        formTitle.textContent =
+            "✏️ Sửa nhân vật";
+
+        formTitle.classList.add(
+            "edit-mode-title"
+        );
+    }
+
+    if (submitButton) {
+
+        submitButton.textContent =
+            "💾 Lưu thay đổi";
+    }
+
+    if (cancelEditButton) {
+
+        cancelEditButton.style.display =
+            "block";
+    }
+
+    // Cuộn lên form
+    if (characterForm) {
+
+        characterForm.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+        });
+    }
+}
+
+// =========================
+// CANCEL EDIT
+// =========================
+
+if (cancelEditButton) {
+
+    cancelEditButton.addEventListener(
+        "click",
+        function () {
+
+            resetCharacterForm();
+
+            showMessage(
+                "Đã hủy chỉnh sửa.",
+                "success"
+            );
+        }
+    );
+}
+
+// =========================
+// SAVE / ADD CHARACTER
 // =========================
 
 if (characterForm) {
@@ -333,16 +692,18 @@ if (characterForm) {
 
             event.preventDefault();
 
-            const submitButton =
-                characterForm.querySelector(
-                    "button[type='submit']"
-                );
-
             if (submitButton) {
-                submitButton.disabled = true;
+
+                submitButton.disabled =
+                    true;
+
                 submitButton.textContent =
-                    "Đang upload...";
+                    editingCharacterId
+                        ? "Đang lưu thay đổi..."
+                        : "Đang upload...";
             }
+
+            let uploadedImage = null;
 
             try {
 
@@ -391,33 +752,31 @@ if (characterForm) {
                         .getElementById(
                             "character-active"
                         )
-                        ?.checked ?? true;
+                        ?.checked ??
+                    true;
 
                 // =====================
                 // VALIDATE
                 // =====================
 
                 if (!name) {
+
                     throw new Error(
                         "Vui lòng nhập tên nhân vật."
                     );
                 }
 
                 if (!category) {
+
                     throw new Error(
                         "Vui lòng nhập thể loại."
                     );
                 }
 
                 if (!address) {
+
                     throw new Error(
                         "Vui lòng nhập địa chỉ."
-                    );
-                }
-
-                if (!selectedFile) {
-                    throw new Error(
-                        "Vui lòng chọn ảnh nhân vật."
                     );
                 }
 
@@ -436,23 +795,166 @@ if (characterForm) {
                             .filter(Boolean)
                         : [];
 
-                // =====================
-                // UPLOAD
-                // =====================
+                // =================================================
+                // EDIT
+                // =================================================
 
-                const uploaded =
+                if (editingCharacterId) {
+
+                    // ---------------------
+                    // Nếu chọn ảnh mới
+                    // ---------------------
+
+                    if (selectedFile) {
+
+                        uploadedImage =
+                            await uploadCharacterImage(
+                                selectedFile
+                            );
+
+                        if (submitButton) {
+
+                            submitButton.textContent =
+                                "Đang cập nhật nhân vật...";
+                        }
+                    }
+
+                    const updateData = {
+                        name: name,
+                        category: category,
+                        address: address,
+                        description:
+                            description || null,
+                        included_items:
+                            includedItems,
+                        is_active:
+                            isActive
+                    };
+
+                    // Chỉ thay image_url
+                    // nếu thực sự chọn ảnh mới
+
+                    if (uploadedImage) {
+
+                        updateData.image_url =
+                            uploadedImage.url;
+                    }
+
+                    const {
+                        data: updatedCharacter,
+                        error: updateError
+                    } = await db
+                        .from("characters")
+                        .update(
+                            updateData
+                        )
+                        .eq(
+                            "id",
+                            editingCharacterId
+                        )
+                        .select()
+                        .single();
+
+                    if (updateError) {
+
+                        console.error(
+                            "Update error:",
+                            updateError
+                        );
+
+                        // Rollback ảnh mới
+                        if (uploadedImage) {
+
+                            await db.storage
+                                .from(BUCKET)
+                                .remove([
+                                    uploadedImage.path
+                                ]);
+                        }
+
+                        throw updateError;
+                    }
+
+                    // ---------------------
+                    // Xóa ảnh cũ
+                    // ---------------------
+
+                    if (
+                        uploadedImage &&
+                        editingCharacterImageUrl
+                    ) {
+
+                        const oldImagePath =
+                            getStoragePathFromUrl(
+                                editingCharacterImageUrl
+                            );
+
+                        if (oldImagePath) {
+
+                            const {
+                                error:
+                                    oldImageDeleteError
+                            } =
+                                await db.storage
+                                    .from(BUCKET)
+                                    .remove([
+                                        oldImagePath
+                                    ]);
+
+                            if (
+                                oldImageDeleteError
+                            ) {
+
+                                console.warn(
+                                    "Không xóa được ảnh cũ:",
+                                    oldImageDeleteError
+                                );
+                            }
+                        }
+                    }
+
+                    console.log(
+                        "Character updated:",
+                        updatedCharacter
+                    );
+
+                    showMessage(
+                        "Đã cập nhật nhân vật thành công!",
+                        "success"
+                    );
+
+                    resetCharacterForm();
+
+                    await loadCharacters();
+
+                    return;
+                }
+
+                // =================================================
+                // ADD NEW CHARACTER
+                // =================================================
+
+                if (!selectedFile) {
+
+                    throw new Error(
+                        "Vui lòng chọn ảnh nhân vật."
+                    );
+                }
+
+                // Upload ảnh
+
+                uploadedImage =
                     await uploadCharacterImage(
                         selectedFile
                     );
 
                 if (submitButton) {
+
                     submitButton.textContent =
                         "Đang lưu nhân vật...";
                 }
 
-                // =====================
-                // DATABASE
-                // =====================
+                // Insert database
 
                 const {
                     data: character,
@@ -466,7 +968,7 @@ if (characterForm) {
                         description:
                             description || null,
                         image_url:
-                            uploaded.url,
+                            uploadedImage.url,
                         included_items:
                             includedItems,
                         is_active:
@@ -475,9 +977,8 @@ if (characterForm) {
                     .select()
                     .single();
 
-                // =====================
-                // ROLLBACK IMAGE
-                // =====================
+                // Rollback image
+                // nếu insert database lỗi
 
                 if (insertError) {
 
@@ -489,7 +990,7 @@ if (characterForm) {
                     await db.storage
                         .from(BUCKET)
                         .remove([
-                            uploaded.path
+                            uploadedImage.path
                         ]);
 
                     throw insertError;
@@ -505,23 +1006,7 @@ if (characterForm) {
                     "success"
                 );
 
-                // =====================
-                // RESET
-                // =====================
-
-                characterForm.reset();
-
-                selectedFile = null;
-
-                if (imagePreview) {
-                    imagePreview.src = "";
-                    imagePreview.style.display =
-                        "none";
-                }
-
-                // =====================
-                // REFRESH LIST
-                // =====================
+                resetCharacterForm();
 
                 await loadCharacters();
 
@@ -531,18 +1016,30 @@ if (characterForm) {
 
                 showMessage(
                     "Có lỗi: " +
-                    (error.message || error),
+                    (
+                        error.message ||
+                        error
+                    ),
                     "error"
                 );
 
             } finally {
 
                 if (submitButton) {
+
                     submitButton.disabled =
                         false;
 
-                    submitButton.textContent =
-                        "Upload ảnh & lưu nhân vật";
+                    if (editingCharacterId) {
+
+                        submitButton.textContent =
+                            "💾 Lưu thay đổi";
+
+                    } else {
+
+                        submitButton.textContent =
+                            "Upload ảnh & lưu nhân vật";
+                    }
                 }
             }
         }
@@ -581,8 +1078,10 @@ async function loadCharacters() {
         console.error(error);
 
         characterList.innerHTML = `
-            <div class="admin-message error"
-                 style="display:block;">
+            <div
+                class="admin-message error"
+                style="display:block;"
+            >
                 Không thể tải danh sách nhân vật.
                 <br>
                 ${escapeHtml(error.message)}
@@ -592,7 +1091,13 @@ async function loadCharacters() {
         return;
     }
 
-    if (!data || data.length === 0) {
+    charactersCache =
+        data || [];
+
+    if (
+        !data ||
+        data.length === 0
+    ) {
 
         characterList.innerHTML = `
             <p>Chưa có nhân vật nào.</p>
@@ -603,124 +1108,216 @@ async function loadCharacters() {
 
     characterList.innerHTML =
         data
-            .map(character => {
+            .map(
+                character => {
 
-                const image =
-                    character.image_url
-                        ? `
-                            <img
-                                src="${escapeHtml(
-                                    character.image_url
-                                )}"
-                                alt="${escapeHtml(
-                                    character.name
-                                )}"
-                                class="admin-character-image"
-                            >
-                        `
-                        : `
-                            <div
-                                class="admin-character-no-image"
-                            >
-                                Chưa có ảnh
-                            </div>
-                        `;
+                    const image =
+                        character.image_url
+                            ? `
+                                <img
+                                    src="${escapeHtml(
+                                        character.image_url
+                                    )}"
+                                    alt="${escapeHtml(
+                                        character.name
+                                    )}"
+                                    class="admin-character-image"
+                                >
+                            `
+                            : `
+                                <div
+                                    class="admin-character-no-image"
+                                >
+                                    Chưa có ảnh
+                                </div>
+                            `;
 
-                return `
-                    <div
-                        class="admin-character-card"
-                    >
-
-                        ${image}
-
+                    return `
                         <div
-                            class="admin-character-info"
+                            class="admin-character-card"
                         >
 
-                            <h3>
-                                ${escapeHtml(
-                                    character.name
-                                )}
-                            </h3>
-
-                            <p>
-                                ${escapeHtml(
-                                    character.category ||
-                                    ""
-                                )}
-                            </p>
-
-                            <p>
-                                📍 Địa chỉ:
-                                <strong>
-                                    ${escapeHtml(
-                                        character.address ||
-                                        "Chưa cập nhật"
-                                    )}
-                                </strong>
-                            </p>
-
-                            <p>
-                                Trạng thái:
-                                <b>
-                                    ${
-                                        character.is_active
-                                            ? "Đang hiển thị"
-                                            : "Đang ẩn"
-                                    }
-                                </b>
-                            </p>
+                            ${image}
 
                             <div
-                                style="
-                                    display:flex;
-                                    gap:8px;
-                                    flex-wrap:wrap;
-                                    margin-top:10px;
-                                "
+                                class="admin-character-info"
                             >
 
-                                <button
-                                    type="button"
-                                    onclick="toggleCharacterStatus(
-                                        ${character.id},
-                                        ${character.is_active}
-                                    )"
-                                >
-                                    ${
-                                        character.is_active
-                                            ? "Ẩn nhân vật"
-                                            : "Hiện nhân vật"
-                                    }
-                                </button>
+                                <h3>
+                                    ${escapeHtml(
+                                        character.name
+                                    )}
+                                </h3>
 
-                                <button
-                                    type="button"
-                                    onclick="deleteCharacter(
-                                        ${character.id},
-                                        '${escapeHtml(
-                                            character.name
-                                        )}',
-                                        '${escapeHtml(
-                                            character.image_url || ""
-                                        )}'
-                                    )"
-                                    style="
-                                        background:#ffe7e7;
-                                        color:#a51d35;
-                                    "
+                                <p>
+                                    ${escapeHtml(
+                                        character.category ||
+                                        ""
+                                    )}
+                                </p>
+
+                                <p>
+                                    📍 Địa chỉ:
+                                    <strong>
+                                        ${escapeHtml(
+                                            character.address ||
+                                            "Chưa cập nhật"
+                                        )}
+                                    </strong>
+                                </p>
+
+                                <p>
+                                    Trạng thái:
+                                    <b>
+                                        ${
+                                            character.is_active
+                                                ? "Đang hiển thị"
+                                                : "Đang ẩn"
+                                        }
+                                    </b>
+                                </p>
+
+                                <div
+                                    class="admin-character-actions"
                                 >
-                                    🗑️ Xóa
-                                </button>
+
+                                    <button
+                                        type="button"
+                                        class="edit-character-button"
+                                        data-action="edit"
+                                        data-id="${escapeHtml(
+                                            character.id
+                                        )}"
+                                    >
+                                        ✏️ Sửa
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        data-action="toggle"
+                                        data-id="${escapeHtml(
+                                            character.id
+                                        )}"
+                                    >
+                                        ${
+                                            character.is_active
+                                                ? "Ẩn nhân vật"
+                                                : "Hiện nhân vật"
+                                        }
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        class="delete-character-button"
+                                        data-action="delete"
+                                        data-id="${escapeHtml(
+                                            character.id
+                                        )}"
+                                    >
+                                        🗑️ Xóa
+                                    </button>
+
+                                </div>
 
                             </div>
 
                         </div>
-
-                    </div>
-                `;
-            })
+                    `;
+                }
+            )
             .join("");
+}
+
+// =========================
+// BUTTON EVENTS
+// =========================
+
+if (characterList) {
+
+    characterList.addEventListener(
+        "click",
+        async function (event) {
+
+            const button =
+                event.target.closest(
+                    "button[data-action]"
+                );
+
+            if (!button) {
+                return;
+            }
+
+            const action =
+                button.dataset.action;
+
+            const id =
+                button.dataset.id;
+
+            if (!id) {
+                return;
+            }
+
+            if (action === "edit") {
+
+                editCharacter(id);
+
+                return;
+            }
+
+            if (action === "toggle") {
+
+                const character =
+                    charactersCache.find(
+                        item =>
+                            String(item.id) ===
+                            String(id)
+                    );
+
+                if (!character) {
+
+                    showMessage(
+                        "Không tìm thấy nhân vật.",
+                        "error"
+                    );
+
+                    return;
+                }
+
+                await toggleCharacterStatus(
+                    character.id,
+                    character.is_active
+                );
+
+                return;
+            }
+
+            if (action === "delete") {
+
+                const character =
+                    charactersCache.find(
+                        item =>
+                            String(item.id) ===
+                            String(id)
+                    );
+
+                if (!character) {
+
+                    showMessage(
+                        "Không tìm thấy nhân vật.",
+                        "error"
+                    );
+
+                    return;
+                }
+
+                await deleteCharacter(
+                    character.id,
+                    character.name,
+                    character.image_url
+                );
+            }
+        }
+    );
 }
 
 // =========================
@@ -742,7 +1339,10 @@ async function toggleCharacterStatus(
         .update({
             is_active: newStatus
         })
-        .eq("id", id);
+        .eq(
+            "id",
+            id
+        );
 
     if (error) {
 
@@ -798,9 +1398,13 @@ async function deleteCharacter(
         } = await db
             .from("characters")
             .delete()
-            .eq("id", id);
+            .eq(
+                "id",
+                id
+            );
 
         if (deleteError) {
+
             console.error(
                 "Delete character error:",
                 deleteError
@@ -869,7 +1473,10 @@ async function deleteCharacter(
 
         showMessage(
             "Không thể xóa nhân vật: " +
-            (error.message || error),
+            (
+                error.message ||
+                error
+            ),
             "error"
         );
     }
@@ -917,6 +1524,7 @@ if (shopButton) {
     shopButton.addEventListener(
         "click",
         function () {
+
             window.location.href =
                 "index.html";
         }
@@ -931,6 +1539,7 @@ db.auth.onAuthStateChange(
     (event, session) => {
 
         if (!session) {
+
             window.location.href =
                 "index.html";
         }
