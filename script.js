@@ -1716,3 +1716,6 @@ document
 showCharacters();
 
 initAuth();
+   function openAdminPage() {
+    window.location.href = "admin.html";
+}
