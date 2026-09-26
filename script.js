@@ -1345,20 +1345,6 @@ function showCharacters(
                 character.name;
 
 
-            const price =
-                document.createElement(
-                    "div"
-                );
-
-
-            price.className =
-                "character-card-price";
-
-
-            price.textContent =
-                character.price;
-
-
             info.appendChild(
                 category
             );
