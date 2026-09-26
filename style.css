@@ -1486,3 +1486,147 @@ a {
     }
 
 }
+
+/* =========================
+   IMAGE LIGHTBOX
+========================= */
+
+.detail-image {
+    cursor: zoom-in;
+    transition: transform 0.2s ease;
+}
+
+.detail-image:hover {
+    transform: scale(1.01);
+}
+
+
+/* Khung phóng to */
+
+.image-lightbox {
+    position: fixed;
+    inset: 0;
+
+    z-index: 9999;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 30px;
+
+    opacity: 1;
+    visibility: visible;
+
+    transition:
+        opacity 0.2s ease,
+        visibility 0.2s ease;
+}
+
+
+/* Khi đóng */
+
+.image-lightbox.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+
+/* Nền tối */
+
+.image-lightbox-overlay {
+    position: absolute;
+    inset: 0;
+
+    background: rgba(0, 0, 0, 0.88);
+
+    backdrop-filter: blur(6px);
+}
+
+
+/* Ảnh lớn */
+
+.lightbox-image {
+    position: relative;
+
+    z-index: 2;
+
+    max-width: 95vw;
+    max-height: 92vh;
+
+    width: auto;
+    height: auto;
+
+    object-fit: contain;
+
+    border-radius: 10px;
+
+    box-shadow:
+        0 20px 80px rgba(0, 0, 0, 0.5);
+
+    cursor: zoom-out;
+
+    user-select: none;
+}
+
+
+/* Nút X */
+
+.image-lightbox-close {
+    position: absolute;
+
+    top: 20px;
+    right: 25px;
+
+    z-index: 3;
+
+    width: 45px;
+    height: 45px;
+
+    border: 0;
+    border-radius: 50%;
+
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+
+    font-size: 32px;
+    line-height: 1;
+
+    cursor: pointer;
+
+    transition: 0.2s;
+}
+
+.image-lightbox-close:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.05);
+}
+
+
+/* Mobile */
+
+@media (max-width: 600px) {
+
+    .image-lightbox {
+        padding: 15px;
+    }
+
+    .lightbox-image {
+        max-width: 96vw;
+        max-height: 88vh;
+
+        border-radius: 6px;
+    }
+
+    .image-lightbox-close {
+        top: 12px;
+        right: 12px;
+
+        width: 40px;
+        height: 40px;
+
+        font-size: 28px;
+    }
+}
+
