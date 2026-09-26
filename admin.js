@@ -1563,3 +1563,136 @@ async function initAdmin() {
 }
 
 initAdmin();
+
+// =========================
+// RENTAL MANAGEMENT
+// =========================
+
+async function loadRentalRequests() {
+    const box = document.getElementById("rental-request-list");
+    if (!box) return;
+
+    box.innerHTML = "<p>Đang tải đơn...</p>";
+
+    const { data: rentals, error } = await db
+        .from("rentals")
+        .select(`
+            id,
+            user_id,
+            character_id,
+            start_date,
+            end_date,
+            status,
+            customer_note,
+            created_at
+        `)
+        .order("created_at", { ascending: false });
+
+    if (error) {
+        console.error("RENTALS ERROR:", error);
+        box.innerHTML = "<p>Không thể tải danh sách đơn.</p>";
+        return;
+    }
+
+    if (!rentals?.length) {
+        box.innerHTML = "<p>Chưa có yêu cầu đặt lịch.</p>";
+        return;
+    }
+
+    const userIds = [...new Set(rentals.map(r => r.user_id).filter(Boolean))];
+    const characterIds = [...new Set(rentals.map(r => r.character_id).filter(Boolean))];
+
+    const [{ data: profiles }, { data: chars }] = await Promise.all([
+        userIds.length
+            ? db.from("profiles").select("id,full_name,phone").in("id", userIds)
+            : Promise.resolve({ data: [] }),
+        characterIds.length
+            ? db.from("characters").select("id,name,image_url").in("id", characterIds)
+            : Promise.resolve({ data: [] })
+    ]);
+
+    const profileMap = new Map((profiles || []).map(p => [String(p.id), p]));
+    const charMap = new Map((chars || []).map(c => [String(c.id), c]));
+
+    const statusMap = {
+        pending: ["Đang chờ xác nhận", "pending"],
+        confirmed: ["Đã xác nhận", "confirmed"],
+        cancelled: ["Đã hủy", "cancelled"],
+        canceled: ["Đã hủy", "cancelled"],
+        rejected: ["Từ chối", "rejected"],
+        declined: ["Từ chối", "rejected"],
+        completed: ["Hoàn tất", "completed"],
+        returned: ["Đã trả đồ", "completed"]
+    };
+
+    box.innerHTML = rentals.map(rental => {
+        const profile = profileMap.get(String(rental.user_id));
+        const character = charMap.get(String(rental.character_id));
+        const status = String(rental.status || "pending").toLowerCase();
+        const [statusText, statusClass] = statusMap[status] || [status, "pending"];
+        const note = rental.customer_note || "";
+
+        return `
+            <article class="admin-rental-card">
+                <div class="admin-rental-head">
+                    <div>
+                        <h3>${escapeHtml(character?.name || "Nhân vật không còn tồn tại")}</h3>
+                        <p><strong>Ngày:</strong> ${escapeHtml(rental.start_date)}${rental.end_date !== rental.start_date ? ` → ${escapeHtml(rental.end_date)}` : ""}</p>
+                        <p><strong>Gửi lúc:</strong> ${escapeHtml(new Date(rental.created_at).toLocaleString("vi-VN"))}</p>
+                    </div>
+                    <span class="admin-rental-status ${statusClass}">${escapeHtml(statusText)}</span>
+                </div>
+
+                <div class="admin-rental-customer">
+                    <p><strong>Khách:</strong> ${escapeHtml(profile?.full_name || "Chưa có tên")}</p>
+                    <p><strong>User ID:</strong> ${escapeHtml(rental.user_id || "")}</p>
+                    ${note ? `<pre>${escapeHtml(note)}</pre>` : ""}
+                </div>
+
+                <div class="admin-rental-actions">
+                    ${status === "pending" ? `
+                        <button type="button" onclick="updateRentalStatus('${escapeHtml(rental.id)}','confirmed')">Xác nhận</button>
+                        <button type="button" class="danger" onclick="updateRentalStatus('${escapeHtml(rental.id)}','rejected')">Từ chối</button>
+                    ` : ""}
+                    ${["pending","confirmed"].includes(status) ? `
+                        <button type="button" class="danger" onclick="updateRentalStatus('${escapeHtml(rental.id)}','cancelled')">Hủy đơn</button>
+                    ` : ""}
+                </div>
+            </article>
+        `;
+    }).join("");
+}
+
+async function updateRentalStatus(rentalId, status) {
+    const labels = {
+        confirmed: "xác nhận đơn này",
+        rejected: "từ chối đơn này",
+        cancelled: "hủy đơn này"
+    };
+
+    if (!window.confirm(`Bạn chắc chắn muốn ${labels[status] || "cập nhật đơn này"}?`)) return;
+
+    const { error } = await db
+        .from("rentals")
+        .update({ status })
+        .eq("id", rentalId);
+
+    if (error) {
+        console.error("UPDATE RENTAL ERROR:", error);
+        showMessage("Không thể cập nhật đơn: " + error.message, "error");
+        return;
+    }
+
+    showMessage("Đã cập nhật đơn.", "success");
+    await loadRentalRequests();
+}
+
+window.loadRentalRequests = loadRentalRequests;
+window.updateRentalStatus = updateRentalStatus;
+
+const originalCheckAdmin = checkAdmin;
+checkAdmin = async function() {
+    const ok = await originalCheckAdmin();
+    if (ok) await loadRentalRequests();
+    return ok;
+};
