@@ -2949,6 +2949,78 @@ window.refreshShop =
     refreshShop;
 
 
+/* =========================================
+   IMAGE LIGHTBOX
+========================================= */
+
+function openImageLightbox() {
+
+    const detailImage =
+        document.getElementById("detail-image");
+
+    const lightbox =
+        document.getElementById("image-lightbox");
+
+    const lightboxImage =
+        document.getElementById("lightbox-image");
+
+    if (!detailImage || !lightbox || !lightboxImage) {
+        return;
+    }
+
+    if (!detailImage.src) {
+        return;
+    }
+
+    lightboxImage.src = detailImage.src;
+    lightboxImage.alt = detailImage.alt || "";
+
+    lightbox.classList.remove("hidden");
+
+    document.body.style.overflow = "hidden";
+}
+
+
+function closeImageLightbox() {
+
+    const lightbox =
+        document.getElementById("image-lightbox");
+
+    if (!lightbox) {
+        return;
+    }
+
+    lightbox.classList.add("hidden");
+
+    document.body.style.overflow = "";
+
+}
+
+
+/* Bấm vào ảnh chi tiết */
+
+document.addEventListener("click", function(event) {
+
+    if (
+        event.target &&
+        event.target.id === "detail-image"
+    ) {
+        openImageLightbox();
+    }
+
+});
+
+
+/* Nhấn ESC để đóng */
+
+document.addEventListener("keydown", function(event) {
+
+    if (event.key === "Escape") {
+        closeImageLightbox();
+    }
+
+});
+
 /* =========================================================
    END
 ========================================================= */
