@@ -7,7 +7,7 @@
    - Double availability check before INSERT
    - Shows actual created_at time for rented days
    - Enforces a 7-day minimum gap between rental slots
-   - Locks 6 days before/after an existing rental as cooldown
+   - Locks 6 days before/after an existing rental as preparation
 ========================================================= */
 
 const SUPABASE_URL =
@@ -48,7 +48,7 @@ let currentYear = now.getFullYear();
 let rentalRealtimeChannel = null;
 
 /* =========================================================
-   RENTAL GAP / COOLDOWN
+   RENTAL GAP / PREPARATION TIME
    - Hai lần thuê của cùng một nhân vật phải cách nhau ít nhất 7 ngày.
    - Nếu thuê ngày D, D+1 đến D+6 sẽ bị khóa.
    - Đồng thời D-1 đến D-6 cũng bị khóa để tránh đặt quá sát.
@@ -204,7 +204,7 @@ function showToast(message) {
 
 /* =========================================================
    BOOKING CONTACT FIELDS
-   - Email lấy từ tài khoản đăng nhập.
+   - Email tài khoản không được dùng làm kênh liên hệ trong form.
    - Cách liên hệ được lưu trong customer_note để không
      phụ thuộc vào việc bảng rentals đã có cột riêng hay chưa.
 ========================================================= */
@@ -219,33 +219,47 @@ function ensureBookingContactFields() {
 
     if (!document.getElementById('customer-contact-method')) {
         const wrapper = document.createElement('label');
+        wrapper.id = 'customer-contact-method-wrapper';
         wrapper.innerHTML = `
-            Cách liên hệ thuận tiện
-
+            Cách liên hệ
             <select id="customer-contact-method">
-                <option value="Zalo">Zalo</option>
-                <option value="Điện thoại">Điện thoại</option>
+                <option value="Zalo/Số điện thoại">Zalo/Số điện thoại</option>
                 <option value="Facebook">Facebook</option>
-                <option value="Email">Email</option>
             </select>
         `;
 
-        const note =
-            document.getElementById('customer-note');
+        const phoneInput =
+            document.getElementById('customer-phone');
 
-        if (note?.parentElement) {
-            note.parentElement.before(wrapper);
+        if (phoneInput?.parentElement) {
+            phoneInput.parentElement.before(wrapper);
         } else {
             form.appendChild(wrapper);
         }
     }
+
+    const method =
+        document.getElementById('customer-contact-method');
+
+    const contactLabel =
+        document.getElementById('customer-contact-label');
+
+    const contactInput =
+        document.getElementById('customer-phone');
+
+    if (method && !method.dataset.bound) {
+        method.addEventListener('change', updateContactFieldUI);
+        method.dataset.bound = '1';
+    }
+
+    updateContactFieldUI();
 
     if (!document.getElementById('booking-contact-help')) {
         const help = document.createElement('p');
         help.id = 'booking-contact-help';
         help.className = 'booking-help';
         help.textContent =
-            'Đây là yêu cầu đặt lịch, chưa phải xác nhận thuê. Shop sẽ nhận thông báo qua email và liên hệ bạn để kiểm tra cọc/CCCD và chốt đơn.';
+            'Đây là yêu cầu đặt lịch, chưa phải xác nhận thuê. Shop sẽ nhận thông báo qua email và liên hệ bạn để trao đổi và chốt đơn.';
 
         const button =
             form.querySelector('button[type="submit"]');
@@ -258,6 +272,44 @@ function ensureBookingContactFields() {
     }
 }
 
+function updateContactFieldUI() {
+    const method =
+        document.getElementById('customer-contact-method')?.value ||
+        'Zalo/Số điện thoại';
+
+    const label =
+        document.getElementById('customer-contact-label');
+
+    const input =
+        document.getElementById('customer-phone');
+
+    if (!input) return;
+
+    const isFacebook =
+        method === 'Facebook';
+
+    if (label) {
+        label.textContent =
+            isFacebook
+                ? 'Link Facebook cá nhân'
+                : 'Zalo / Số điện thoại';
+    }
+
+    input.type =
+        isFacebook
+            ? 'url'
+            : 'tel';
+
+    input.placeholder =
+        isFacebook
+            ? 'https://facebook.com/ten-cua-ban'
+            : '09xxxxxxxx';
+
+    input.autocomplete =
+        isFacebook
+            ? 'url'
+            : 'tel';
+}
 
 /* =========================================================
    AUTH MODAL
@@ -548,6 +600,14 @@ async function signOutUser() {
     currentUser = null;
     currentProfile = null;
 
+    document
+        .getElementById("my-bookings-modal")
+        ?.classList.add("hidden");
+
+    document
+        .getElementById("my-bookings-button")
+        ?.remove();
+
     updateAuthUI();
     showToast("Đã đăng xuất.");
 }
@@ -629,6 +689,8 @@ function updateAuthUI() {
         adminButton.style.display =
             isAdmin ? "inline-block" : "none";
     }
+
+    ensureMyBookingsUI();
 }
 
 
@@ -695,8 +757,8 @@ async function loadCharactersFromSupabase() {
                     : [],
             rentedDays: [],
             rentalMeta: new Map(),
-            cooldownDays: [],
-            cooldownMeta: new Map()
+            preparationDays: [],
+            preparationMeta: new Map()
         }));
 
     showCharacters();
@@ -865,8 +927,8 @@ async function openCharacter(id) {
 
     character.rentedDays = [];
     character.rentalMeta = new Map();
-    character.cooldownDays = [];
-    character.cooldownMeta = new Map();
+    character.preparationDays = [];
+    character.preparationMeta = new Map();
 
     renderCalendar();
     await loadRentalCalendarData();
@@ -981,15 +1043,15 @@ function renderCalendar() {
             selectedCharacter.rentalMeta?.get(dateString) ||
             null;
 
-        const cooldown =
-            selectedCharacter.cooldownMeta?.get(dateString) ||
+        const preparation =
+            selectedCharacter.preparationMeta?.get(dateString) ||
             null;
 
         const rented =
             selectedCharacter.rentedDays.includes(day);
 
         const inCooldown =
-            selectedCharacter.cooldownDays?.includes(day) &&
+            selectedCharacter.preparationDays?.includes(day) &&
             !rented;
 
         const past =
@@ -1031,12 +1093,12 @@ function renderCalendar() {
                     ? "Ngày này đang có yêu cầu đặt lịch chờ shop xác nhận."
                     : "Ngày này đã có người thuê.";
         } else if (inCooldown) {
-            statusClass = "cooldown";
-            statusText = "Hồi chiêu";
+            statusClass = "preparation";
+            statusText = "Thời gian chuẩn bị";
 
-            if (cooldown?.until) {
+            if (preparation?.until) {
                 const untilDate =
-                    parseLocalDate(cooldown.until);
+                    parseLocalDate(preparation.until);
 
                 if (untilDate) {
                     titleText =
@@ -1044,12 +1106,12 @@ function renderCalendar() {
                 }
             }
 
-            if (cooldown?.source?.created_at) {
+            if (preparation?.source?.created_at) {
                 timeText = `
                     <small class="rental-time">
                         Sau đơn ${escapeHtml(
                             formatRentalTime(
-                                cooldown.source.created_at
+                                preparation.source.created_at
                             )
                         )}
                     </small>
@@ -1144,7 +1206,7 @@ async function loadRentalCalendarData() {
 
     /*
        Lấy dư 6 ngày hai đầu tháng để bắt được
-       thời gian hồi chiêu từ đơn ở tháng trước/sau.
+       thời gian chuẩn bị từ đơn ở tháng trước/sau.
     */
     const queryStart =
         addDaysToDateString(
@@ -1198,8 +1260,8 @@ async function loadRentalCalendarData() {
 
     const rentedDays = [];
     const rentalMeta = new Map();
-    const cooldownDays = [];
-    const cooldownMeta = new Map();
+    const preparationDays = [];
+    const preparationMeta = new Map();
 
     const setCooldownMeta = (
         dateString,
@@ -1225,19 +1287,19 @@ async function loadRentalCalendarData() {
         const dayNumber =
             date.getDate();
 
-        if (!cooldownDays.includes(dayNumber)) {
-            cooldownDays.push(dayNumber);
+        if (!preparationDays.includes(dayNumber)) {
+            preparationDays.push(dayNumber);
         }
 
         const existing =
-            cooldownMeta.get(dateString);
+            preparationMeta.get(dateString);
 
         if (
             !existing ||
             new Date(rental.created_at || 0) >
             new Date(existing.source?.created_at || 0)
         ) {
-            cooldownMeta.set(
+            preparationMeta.set(
                 dateString,
                 {
                     source: rental,
@@ -1364,7 +1426,7 @@ async function loadRentalCalendarData() {
     });
 
     const finalCooldownDays =
-        cooldownDays.filter(dayNumber => {
+        preparationDays.filter(dayNumber => {
             return !rentedDays.includes(dayNumber);
         });
 
@@ -1374,11 +1436,11 @@ async function loadRentalCalendarData() {
     selectedCharacter.rentalMeta =
         rentalMeta;
 
-    selectedCharacter.cooldownDays =
+    selectedCharacter.preparationDays =
         finalCooldownDays;
 
-    selectedCharacter.cooldownMeta =
-        cooldownMeta;
+    selectedCharacter.preparationMeta =
+        preparationMeta;
 
     renderCalendar();
 }
@@ -1492,18 +1554,18 @@ function openBooking(day) {
     }
 
     if (
-        selectedCharacter.cooldownMeta?.has(
+        selectedCharacter.preparationMeta?.has(
             dateString
         )
     ) {
-        const cooldownInfo =
-            selectedCharacter.cooldownMeta.get(
+        const preparationInfo =
+            selectedCharacter.preparationMeta.get(
                 dateString
             );
 
         const untilDate =
             parseLocalDate(
-                cooldownInfo?.until
+                preparationInfo?.until
             );
 
         const untilText = untilDate
@@ -1512,8 +1574,8 @@ function openBooking(day) {
 
         showToast(
             untilText
-                ? `Ngày này đang hồi chiêu. Slot kế tiếp từ ${untilText}.`
-                : "Ngày này đang trong thời gian hồi chiêu. Vui lòng chọn ngày khác."
+                ? `Ngày này đang trong thời gian chuẩn bị. Slot kế tiếp từ ${untilText}.`
+                : "Ngày này đang trong thời gian chuẩn bị. Vui lòng chọn ngày khác."
         );
         return;
     }
@@ -1563,8 +1625,10 @@ function openBooking(day) {
 
     if (phoneInput) {
         phoneInput.value =
-            currentProfile?.phone || "";
+            "";
     }
+
+    updateContactFieldUI();
 
     const noteInput =
         document.getElementById("customer-note");
@@ -1585,7 +1649,7 @@ function openBooking(day) {
 
     if (help) {
         help.textContent =
-            "Đây là yêu cầu đặt lịch, chưa phải xác nhận thuê. Shop sẽ nhận thông báo qua email và liên hệ bạn để kiểm tra cọc/CCCD và chốt đơn.";
+            "Đây là yêu cầu đặt lịch, chưa phải xác nhận thuê. Shop sẽ nhận thông báo qua email và liên hệ bạn để trao đổi và chốt đơn.";
     }
 
     modal.classList.remove("hidden");
@@ -1648,9 +1712,6 @@ async function submitBooking(event) {
             .getElementById("customer-contact-method")
             ?.value
             ?.trim() || "Zalo";
-
-    const customerEmail =
-        currentUser.email || "";
 
     if (!name) {
         showToast("Vui lòng nhập họ tên.");
@@ -1752,14 +1813,12 @@ async function submitBooking(event) {
 
         const customerNote = [
             `Họ tên: ${name}`,
-            `SĐT: ${phone}`,
-            `Email: ${customerEmail || "Chưa có"}`,
-            `Cách liên hệ: ${contactMethod}`,
+            `${contactMethod}: ${phone}`,
             note
                 ? `Ghi chú: ${note}`
                 : "",
             "---",
-            "Đây là yêu cầu đặt lịch, shop cần liên hệ khách để kiểm tra cọc/CCCD và xác nhận thuê."
+            "Đây là yêu cầu đặt lịch, chưa phải xác nhận thuê."
         ]
             .filter(Boolean)
             .join("\n");
@@ -1801,7 +1860,7 @@ async function submitBooking(event) {
                 closeBooking();
 
                 showToast(
-                    "Ngày này vừa có người đặt hoặc đang trong thời gian hồi chiêu. Vui lòng chọn ngày khác."
+                    "Ngày này vừa có người đặt hoặc đang trong thời gian chuẩn bị. Vui lòng chọn ngày khác."
                 );
                 return;
             }
@@ -1976,6 +2035,294 @@ document.addEventListener("keydown", event => {
 });
 
 
+
+/* =========================================================
+   MY BOOKINGS
+   - Khách xem các yêu cầu/đơn của chính mình.
+   - Có thể hủy đơn đang pending/confirmed.
+========================================================= */
+
+function ensureMyBookingsUI() {
+    if (!currentUser) return;
+
+    const authUser =
+        document.getElementById("auth-user");
+
+    if (!authUser) return;
+
+    if (document.getElementById("my-bookings-button")) {
+        return;
+    }
+
+    const button = document.createElement("button");
+    button.id = "my-bookings-button";
+    button.className = "auth-button";
+    button.type = "button";
+    button.textContent = "Lịch của tôi";
+    button.onclick = openMyBookings;
+
+    authUser.insertBefore(
+        button,
+        authUser.querySelector('button[onclick="signOutUser()"]') || null
+    );
+
+    ensureMyBookingsModal();
+}
+
+function ensureMyBookingsModal() {
+    if (document.getElementById("my-bookings-modal")) return;
+
+    const modal = document.createElement("div");
+    modal.id = "my-bookings-modal";
+    modal.className = "modal hidden";
+
+    modal.innerHTML = `
+        <div class="modal-overlay" onclick="closeMyBookings()"></div>
+        <div class="modal-box" style="max-width:760px;">
+            <button
+                class="modal-close"
+                type="button"
+                onclick="closeMyBookings()"
+            >×</button>
+
+            <p class="section-small">LỊCH CỦA TÔI</p>
+            <h2>Yêu cầu đặt lịch của bạn</h2>
+
+            <div
+                id="my-bookings-list"
+                style="display:grid;gap:12px;margin-top:18px;"
+            >
+                <p>Đang tải...</p>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+}
+
+function bookingStatusText(status) {
+    const map = {
+        pending: "Đang chờ xác nhận",
+        confirmed: "Đã xác nhận",
+        rejected: "Đã từ chối",
+        declined: "Đã từ chối",
+        cancelled: "Đã hủy",
+        canceled: "Đã hủy",
+        completed: "Hoàn tất",
+        returned: "Đã trả đồ"
+    };
+
+    return map[String(status || "").toLowerCase()] ||
+        "Không xác định";
+}
+
+async function openMyBookings() {
+    if (!currentUser) {
+        openAuthModal("Vui lòng đăng nhập để xem lịch của bạn.");
+        return;
+    }
+
+    ensureMyBookingsModal();
+
+    const modal =
+        document.getElementById("my-bookings-modal");
+
+    modal?.classList.remove("hidden");
+
+    await loadMyBookings();
+}
+
+function closeMyBookings() {
+    document
+        .getElementById("my-bookings-modal")
+        ?.classList.add("hidden");
+}
+
+async function loadMyBookings() {
+    const box =
+        document.getElementById("my-bookings-list");
+
+    if (!box || !currentUser) return;
+
+    box.innerHTML = "<p>Đang tải...</p>";
+
+    const {
+        data,
+        error
+    } = await supabaseClient
+        .from("rentals")
+        .select(`
+            id,
+            character_id,
+            start_date,
+            end_date,
+            status,
+            customer_note,
+            created_at
+        `)
+        .eq("user_id", currentUser.id)
+        .order("created_at", {
+            ascending: false
+        });
+
+    if (error) {
+        console.error("MY BOOKINGS ERROR:", error);
+
+        box.innerHTML = `
+            <p>
+                Không thể tải lịch của bạn.
+                ${escapeHtml(error.message || "")}
+            </p>
+        `;
+        return;
+    }
+
+    if (!data?.length) {
+        box.innerHTML = `
+            <p>
+                Bạn chưa có yêu cầu đặt lịch nào.
+            </p>
+        `;
+        return;
+    }
+
+    box.innerHTML = data.map(rental => {
+        const character =
+            characters.find(
+                item =>
+                    String(item.id) ===
+                    String(rental.character_id)
+            );
+
+        const status =
+            String(rental.status || "").toLowerCase();
+
+        const canCancel =
+            ["pending", "confirmed"].includes(status);
+
+        const dateText =
+            rental.start_date === rental.end_date
+                ? rental.start_date
+                : `${rental.start_date} → ${rental.end_date}`;
+
+        return `
+            <article
+                style="
+                    border:1px solid rgba(0,0,0,.1);
+                    border-radius:14px;
+                    padding:14px;
+                "
+            >
+                <div style="display:flex;justify-content:space-between;gap:12px;">
+                    <div>
+                        <strong>
+                            ${escapeHtml(
+                                character?.name ||
+                                "Nhân vật không còn tồn tại"
+                            )}
+                        </strong>
+
+                        <div style="margin-top:5px;">
+                            Ngày: ${escapeHtml(dateText)}
+                        </div>
+
+                        <div style="margin-top:5px;color:#777;">
+                            Gửi lúc:
+                            ${escapeHtml(
+                                formatRentalTime(
+                                    rental.created_at
+                                )
+                            )}
+                        </div>
+                    </div>
+
+                    <strong>
+                        ${escapeHtml(
+                            bookingStatusText(rental.status)
+                        )}
+                    </strong>
+                </div>
+
+                ${
+                    canCancel
+                        ? `
+                            <button
+                                type="button"
+                                style="
+                                    margin-top:12px;
+                                    padding:9px 13px;
+                                    border:0;
+                                    border-radius:9px;
+                                    cursor:pointer;
+                                "
+                                onclick="cancelMyBooking('${escapeHtml(rental.id)}')"
+                            >
+                                Hủy lịch này
+                            </button>
+                          `
+                        : ""
+                }
+            </article>
+        `;
+    }).join("");
+}
+
+async function cancelMyBooking(rentalId) {
+    if (!currentUser || !rentalId) return;
+
+    const confirmed =
+        window.confirm(
+            "Bạn chắc chắn muốn hủy yêu cầu/đơn này?"
+        );
+
+    if (!confirmed) return;
+
+    const {
+        data,
+        error
+    } = await supabaseClient
+        .from("rentals")
+        .update({
+            status: "cancelled"
+        })
+        .eq("id", rentalId)
+        .eq("user_id", currentUser.id)
+        .in("status", ["pending", "confirmed"])
+        .select("id")
+        .maybeSingle();
+
+    if (error) {
+        console.error(
+            "CANCEL MY BOOKING ERROR:",
+            error
+        );
+
+        showToast(
+            "Không thể hủy lịch: " +
+            (error.message || "Lỗi không xác định")
+        );
+
+        return;
+    }
+
+    if (!data) {
+        showToast(
+            "Đơn này không còn ở trạng thái có thể hủy."
+        );
+
+        await loadMyBookings();
+        return;
+    }
+
+    showToast("Đã hủy lịch.");
+
+    await loadMyBookings();
+
+    if (selectedCharacter) {
+        await loadRentalCalendarData();
+    }
+}
+
 /* =========================================================
    ADMIN
 ========================================================= */
@@ -2018,6 +2365,9 @@ window.nextMonth = nextMonth;
 window.openBooking = openBooking;
 window.closeBooking = closeBooking;
 window.submitBooking = submitBooking;
+window.openMyBookings = openMyBookings;
+window.closeMyBookings = closeMyBookings;
+window.cancelMyBooking = cancelMyBooking;
 window.openImageLightbox = openImageLightbox;
 window.closeImageLightbox = closeImageLightbox;
 window.openAdminPage = openAdminPage;
