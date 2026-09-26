@@ -513,6 +513,12 @@ function updateAuthUI() {
 
     role.style.display =
         "inline-block";
+const adminButton =
+    document.getElementById("admin-button");
+
+if (adminButton) {
+    adminButton.style.display =
+        isAdmin ? "inline-block" : "none";
 }
 
 
