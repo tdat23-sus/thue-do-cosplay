@@ -6,6 +6,8 @@
    - Realtime rental updates
    - Double availability check before INSERT
    - Shows actual created_at time for rented days
+   - Enforces a 7-day minimum gap between rental slots
+   - Locks 6 days before/after an existing rental as cooldown
 ========================================================= */
 
 const SUPABASE_URL =
@@ -44,6 +46,16 @@ let currentMonth = now.getMonth();
 let currentYear = now.getFullYear();
 
 let rentalRealtimeChannel = null;
+
+/* =========================================================
+   RENTAL GAP / COOLDOWN
+   - Hai lần thuê của cùng một nhân vật phải cách nhau ít nhất 7 ngày.
+   - Nếu thuê ngày D, D+1 đến D+6 sẽ bị khóa.
+   - Đồng thời D-1 đến D-6 cũng bị khóa để tránh đặt quá sát.
+   - D+7 là ngày kế tiếp có thể nhận slot.
+========================================================= */
+const MIN_RENTAL_GAP_DAYS = 7;
+const COOLDOWN_DAYS = MIN_RENTAL_GAP_DAYS - 1;
 
 
 /* =========================================================
@@ -115,6 +127,26 @@ function parseLocalDate(value) {
 }
 
 
+function addDaysToDateString(value, amount) {
+    const date = parseLocalDate(value);
+
+    if (!date) return null;
+
+    date.setDate(date.getDate() + amount);
+    return formatLocalDate(date);
+}
+
+
+function dateRangesOverlap(
+    startA,
+    endA,
+    startB,
+    endB
+) {
+    return startA <= endB && endA >= startB;
+}
+
+
 function formatRentalTime(value) {
     if (!value) return "";
 
@@ -167,6 +199,63 @@ function showToast(message) {
     showToast.timer = setTimeout(() => {
         toast.classList.remove("show");
     }, 3000);
+}
+
+
+/* =========================================================
+   BOOKING CONTACT FIELDS
+   - Email lấy từ tài khoản đăng nhập.
+   - Cách liên hệ được lưu trong customer_note để không
+     phụ thuộc vào việc bảng rentals đã có cột riêng hay chưa.
+========================================================= */
+
+function ensureBookingContactFields() {
+    const form =
+        document.querySelector(
+            '#booking-modal form'
+        );
+
+    if (!form) return;
+
+    if (!document.getElementById('customer-contact-method')) {
+        const wrapper = document.createElement('label');
+        wrapper.innerHTML = `
+            Cách liên hệ thuận tiện
+
+            <select id="customer-contact-method">
+                <option value="Zalo">Zalo</option>
+                <option value="Điện thoại">Điện thoại</option>
+                <option value="Facebook">Facebook</option>
+                <option value="Email">Email</option>
+            </select>
+        `;
+
+        const note =
+            document.getElementById('customer-note');
+
+        if (note?.parentElement) {
+            note.parentElement.before(wrapper);
+        } else {
+            form.appendChild(wrapper);
+        }
+    }
+
+    if (!document.getElementById('booking-contact-help')) {
+        const help = document.createElement('p');
+        help.id = 'booking-contact-help';
+        help.className = 'booking-help';
+        help.textContent =
+            'Đây là yêu cầu đặt lịch, chưa phải xác nhận thuê. Shop sẽ nhận thông báo qua email và liên hệ bạn để kiểm tra cọc/CCCD và chốt đơn.';
+
+        const button =
+            form.querySelector('button[type="submit"]');
+
+        if (button) {
+            button.before(help);
+        } else {
+            form.appendChild(help);
+        }
+    }
 }
 
 
@@ -605,7 +694,9 @@ async function loadCharactersFromSupabase() {
                     ? character.included_items
                     : [],
             rentedDays: [],
-            rentalMeta: new Map()
+            rentalMeta: new Map(),
+            cooldownDays: [],
+            cooldownMeta: new Map()
         }));
 
     showCharacters();
@@ -774,6 +865,8 @@ async function openCharacter(id) {
 
     character.rentedDays = [];
     character.rentalMeta = new Map();
+    character.cooldownDays = [];
+    character.cooldownMeta = new Map();
 
     renderCalendar();
     await loadRentalCalendarData();
@@ -888,26 +981,38 @@ function renderCalendar() {
             selectedCharacter.rentalMeta?.get(dateString) ||
             null;
 
+        const cooldown =
+            selectedCharacter.cooldownMeta?.get(dateString) ||
+            null;
+
         const rented =
             selectedCharacter.rentedDays.includes(day);
 
-        const past = date < today;
+        const inCooldown =
+            selectedCharacter.cooldownDays?.includes(day) &&
+            !rented;
+
+        const past =
+            date < today;
 
         const element =
             document.createElement("div");
 
-        element.className =
-            `calendar-day ${
-                rented
-                    ? "rented"
-                    : "available"
-            }${past ? " past" : ""}`;
-
+        let statusClass = "available";
         let statusText = "Còn trống";
         let timeText = "";
+        let titleText = "";
 
         if (rented) {
-            statusText = "Đã thuê";
+            statusClass = "rented";
+
+            const rentalStatus =
+                String(rental?.status || "").toLowerCase();
+
+            statusText =
+                rentalStatus === "pending"
+                    ? "Đang chờ xác nhận"
+                    : "Đã thuê";
 
             if (rental?.created_at) {
                 timeText = `
@@ -920,8 +1025,47 @@ function renderCalendar() {
                     </small>
                 `;
             }
+
+            titleText =
+                rentalStatus === "pending"
+                    ? "Ngày này đang có yêu cầu đặt lịch chờ shop xác nhận."
+                    : "Ngày này đã có người thuê.";
+        } else if (inCooldown) {
+            statusClass = "cooldown";
+            statusText = "Hồi chiêu";
+
+            if (cooldown?.until) {
+                const untilDate =
+                    parseLocalDate(cooldown.until);
+
+                if (untilDate) {
+                    titleText =
+                        `Ngày này đang được khóa để shop có thời gian xử lý đồ. Có thể nhận slot lại từ ${untilDate.toLocaleDateString("vi-VN")}.`;
+                }
+            }
+
+            if (cooldown?.source?.created_at) {
+                timeText = `
+                    <small class="rental-time">
+                        Sau đơn ${escapeHtml(
+                            formatRentalTime(
+                                cooldown.source.created_at
+                            )
+                        )}
+                    </small>
+                `;
+            }
         } else if (past) {
+            statusClass = "past";
             statusText = "Đã qua";
+            titleText = "Ngày này đã qua.";
+        }
+
+        element.className =
+            `calendar-day ${statusClass}${past ? " past" : ""}`;
+
+        if (titleText) {
+            element.title = titleText;
         }
 
         element.innerHTML = `
@@ -934,7 +1078,7 @@ function renderCalendar() {
             ${timeText}
         `;
 
-        if (!rented && !past) {
+        if (!rented && !inCooldown && !past) {
             element.onclick = () => {
                 openBooking(day);
             };
@@ -943,7 +1087,6 @@ function renderCalendar() {
         calendar.appendChild(element);
     }
 }
-
 
 async function previousMonth() {
     currentMonth--;
@@ -999,6 +1142,22 @@ async function loadRentalCalendarData() {
             lastDay
         );
 
+    /*
+       Lấy dư 6 ngày hai đầu tháng để bắt được
+       thời gian hồi chiêu từ đơn ở tháng trước/sau.
+    */
+    const queryStart =
+        addDaysToDateString(
+            firstDate,
+            -COOLDOWN_DAYS
+        );
+
+    const queryEnd =
+        addDaysToDateString(
+            lastDate,
+            COOLDOWN_DAYS
+        );
+
     const {
         data,
         error
@@ -1018,11 +1177,11 @@ async function loadRentalCalendarData() {
         )
         .lte(
             "start_date",
-            lastDate
+            queryEnd
         )
         .gte(
             "end_date",
-            firstDate
+            queryStart
         )
         .order(
             "created_at",
@@ -1039,6 +1198,54 @@ async function loadRentalCalendarData() {
 
     const rentedDays = [];
     const rentalMeta = new Map();
+    const cooldownDays = [];
+    const cooldownMeta = new Map();
+
+    const setCooldownMeta = (
+        dateString,
+        rental,
+        until
+    ) => {
+        if (
+            dateString < firstDate ||
+            dateString > lastDate
+        ) {
+            return;
+        }
+
+        const date =
+            parseLocalDate(dateString);
+
+        if (!date) return;
+
+        if (rentalMeta.has(dateString)) {
+            return;
+        }
+
+        const dayNumber =
+            date.getDate();
+
+        if (!cooldownDays.includes(dayNumber)) {
+            cooldownDays.push(dayNumber);
+        }
+
+        const existing =
+            cooldownMeta.get(dateString);
+
+        if (
+            !existing ||
+            new Date(rental.created_at || 0) >
+            new Date(existing.source?.created_at || 0)
+        ) {
+            cooldownMeta.set(
+                dateString,
+                {
+                    source: rental,
+                    until
+                }
+            );
+        }
+    };
 
     (data || []).forEach(rental => {
         if (!rentalBlocksDate(rental.status)) {
@@ -1055,18 +1262,20 @@ async function loadRentalCalendarData() {
             return;
         }
 
-        const cursor = new Date(start);
+        /* Ngày thực tế đã thuê. */
+        const occupiedCursor =
+            new Date(start);
 
-        while (cursor <= end) {
+        while (occupiedCursor <= end) {
             const dateString =
-                formatLocalDate(cursor);
+                formatLocalDate(occupiedCursor);
 
             if (
                 dateString >= firstDate &&
                 dateString <= lastDate
             ) {
                 const dayNumber =
-                    cursor.getDate();
+                    occupiedCursor.getDate();
 
                 if (!rentedDays.includes(dayNumber)) {
                     rentedDays.push(dayNumber);
@@ -1091,11 +1300,73 @@ async function loadRentalCalendarData() {
                 }
             }
 
-            cursor.setDate(
-                cursor.getDate() + 1
+            occupiedCursor.setDate(
+                occupiedCursor.getDate() + 1
             );
         }
+
+        /*
+           Khóa 6 ngày trước ngày bắt đầu.
+           Ví dụ thuê CN 06/09:
+           01/09 -> 05/09 bị khóa.
+        */
+        for (
+            let offset = 1;
+            offset <= COOLDOWN_DAYS;
+            offset++
+        ) {
+            const blockedDate =
+                addDaysToDateString(
+                    rental.start_date,
+                    -offset
+                );
+
+            if (blockedDate) {
+                setCooldownMeta(
+                    blockedDate,
+                    rental,
+                    rental.start_date
+                );
+            }
+        }
+
+        /*
+           Khóa 6 ngày sau ngày kết thúc.
+           Ví dụ thuê CN 06/09:
+           07/09 -> 12/09 bị khóa.
+           13/09 (đủ 7 ngày) được nhận slot tiếp.
+        */
+        for (
+            let offset = 1;
+            offset <= COOLDOWN_DAYS;
+            offset++
+        ) {
+            const blockedDate =
+                addDaysToDateString(
+                    rental.end_date,
+                    offset
+                );
+
+            if (blockedDate) {
+                const nextAvailableDate =
+                    addDaysToDateString(
+                        rental.end_date,
+                        MIN_RENTAL_GAP_DAYS
+                    );
+
+                setCooldownMeta(
+                    blockedDate,
+                    rental,
+                    nextAvailableDate
+                );
+            }
+        }
     });
+
+    const finalCooldownDays =
+        cooldownDays.filter(dayNumber => {
+            return !rentedDays.includes(dayNumber);
+        });
 
     selectedCharacter.rentedDays =
         rentedDays;
@@ -1103,9 +1374,14 @@ async function loadRentalCalendarData() {
     selectedCharacter.rentalMeta =
         rentalMeta;
 
+    selectedCharacter.cooldownDays =
+        finalCooldownDays;
+
+    selectedCharacter.cooldownMeta =
+        cooldownMeta;
+
     renderCalendar();
 }
-
 
 /* =========================================================
    AVAILABILITY CHECK BEFORE INSERT
@@ -1116,13 +1392,31 @@ async function checkRentalAvailability(
     startDate,
     endDate
 ) {
+    /*
+       Hai lần thuê phải cách nhau ít nhất 7 ngày.
+
+       Vùng xung đột của một yêu cầu mới:
+       startDate - 6 ngày -> endDate + 6 ngày.
+    */
+    const conflictStart =
+        addDaysToDateString(
+            startDate,
+            -COOLDOWN_DAYS
+        );
+
+    const conflictEnd =
+        addDaysToDateString(
+            endDate,
+            COOLDOWN_DAYS
+        );
+
     const {
         data,
         error
     } = await supabaseClient
         .from("rentals")
         .select(
-            "id, start_date, end_date, status"
+            "id, start_date, end_date, status, created_at"
         )
         .eq(
             "character_id",
@@ -1130,13 +1424,13 @@ async function checkRentalAvailability(
         )
         .lte(
             "start_date",
-            endDate
+            conflictEnd
         )
         .gte(
             "end_date",
-            startDate
+            conflictStart
         )
-        .limit(20);
+        .limit(50);
 
     if (error) {
         console.error(
@@ -1151,16 +1445,26 @@ async function checkRentalAvailability(
     }
 
     const blockingRental =
-        (data || []).find(rental =>
-            rentalBlocksDate(rental.status)
-        );
+        (data || []).find(rental => {
+            if (!rentalBlocksDate(rental.status)) {
+                return false;
+            }
+
+            return dateRangesOverlap(
+                rental.start_date,
+                rental.end_date,
+                conflictStart,
+                conflictEnd
+            );
+        });
 
     return {
         available: !blockingRental,
+        blockingRental:
+            blockingRental || null,
         error: null
     };
 }
-
 
 /* =========================================================
    BOOKING
@@ -1182,7 +1486,34 @@ function openBooking(day) {
         )
     ) {
         showToast(
-            "Ngày này vừa có người đặt. Vui lòng chọn ngày khác."
+            "Ngày này đã có người thuê. Vui lòng chọn ngày khác."
+        );
+        return;
+    }
+
+    if (
+        selectedCharacter.cooldownMeta?.has(
+            dateString
+        )
+    ) {
+        const cooldownInfo =
+            selectedCharacter.cooldownMeta.get(
+                dateString
+            );
+
+        const untilDate =
+            parseLocalDate(
+                cooldownInfo?.until
+            );
+
+        const untilText = untilDate
+            ? untilDate.toLocaleDateString("vi-VN")
+            : "";
+
+        showToast(
+            untilText
+                ? `Ngày này đang hồi chiêu. Slot kế tiếp từ ${untilText}.`
+                : "Ngày này đang trong thời gian hồi chiêu. Vui lòng chọn ngày khác."
         );
         return;
     }
@@ -1242,6 +1573,21 @@ function openBooking(day) {
         noteInput.value = "";
     }
 
+    const contactMethod =
+        document.getElementById("customer-contact-method");
+
+    if (contactMethod) {
+        contactMethod.value = "Zalo";
+    }
+
+    const help =
+        document.getElementById("booking-contact-help");
+
+    if (help) {
+        help.textContent =
+            "Đây là yêu cầu đặt lịch, chưa phải xác nhận thuê. Shop sẽ nhận thông báo qua email và liên hệ bạn để kiểm tra cọc/CCCD và chốt đơn.";
+    }
+
     modal.classList.remove("hidden");
     nameInput?.focus();
 }
@@ -1297,6 +1643,15 @@ async function submitBooking(event) {
             ?.value
             ?.trim() || "";
 
+    const contactMethod =
+        document
+            .getElementById("customer-contact-method")
+            ?.value
+            ?.trim() || "Zalo";
+
+    const customerEmail =
+        currentUser.email || "";
+
     if (!name) {
         showToast("Vui lòng nhập họ tên.");
         return;
@@ -1338,9 +1693,28 @@ async function submitBooking(event) {
         await loadRentalCalendarData();
         closeBooking();
 
-        showToast(
-            "Ngày này vừa có người đặt. Vui lòng chọn ngày khác."
-        );
+        if (availability.blockingRental) {
+            const nextAvailableDate =
+                addDaysToDateString(
+                    availability.blockingRental.end_date,
+                    MIN_RENTAL_GAP_DAYS
+                );
+
+            const nextAvailableText =
+                parseLocalDate(nextAvailableDate)
+                    ?.toLocaleDateString("vi-VN") || "";
+
+            showToast(
+                nextAvailableText
+                    ? `Ngày này quá sát một đơn thuê khác. Slot kế tiếp từ ${nextAvailableText}.`
+                    : "Ngày này quá sát một đơn thuê khác. Vui lòng chọn ngày khác."
+            );
+        } else {
+            showToast(
+                "Ngày này quá sát một đơn thuê khác. Vui lòng chọn ngày khác."
+            );
+        }
+
         return;
     }
 
@@ -1379,9 +1753,13 @@ async function submitBooking(event) {
         const customerNote = [
             `Họ tên: ${name}`,
             `SĐT: ${phone}`,
+            `Email: ${customerEmail || "Chưa có"}`,
+            `Cách liên hệ: ${contactMethod}`,
             note
                 ? `Ghi chú: ${note}`
-                : ""
+                : "",
+            "---",
+            "Đây là yêu cầu đặt lịch, shop cần liên hệ khách để kiểm tra cọc/CCCD và xác nhận thuê."
         ]
             .filter(Boolean)
             .join("\n");
@@ -1415,7 +1793,7 @@ async function submitBooking(event) {
             if (
                 error.code === "23P01" ||
                 error.code === "23505" ||
-                /overlap|duplicate|already|conflict/i.test(
+                /overlap|duplicate|already|conflict|exclusion/i.test(
                     error.message || ""
                 )
             ) {
@@ -1423,7 +1801,7 @@ async function submitBooking(event) {
                 closeBooking();
 
                 showToast(
-                    "Ngày này vừa có người đặt. Vui lòng chọn ngày khác."
+                    "Ngày này vừa có người đặt hoặc đang trong thời gian hồi chiêu. Vui lòng chọn ngày khác."
                 );
                 return;
             }
@@ -1448,7 +1826,7 @@ async function submitBooking(event) {
         }
 
         showToast(
-            "Đặt thuê thành công! Shop sẽ liên hệ với bạn."
+            "Đã gửi yêu cầu đặt lịch! Shop sẽ nhận email và liên hệ bạn để chốt đơn."
         );
 
         /* Lấy lại created_at thật từ database. */
@@ -1469,7 +1847,7 @@ async function submitBooking(event) {
         if (submitButton) {
             submitButton.disabled = false;
             submitButton.textContent =
-                "Gửi yêu cầu thuê";
+                "Đặt lịch";
         }
     }
 }
@@ -1651,6 +2029,7 @@ window.openAdminPage = openAdminPage;
 
 async function initApp() {
     try {
+        ensureBookingContactFields();
         await loadCharactersFromSupabase();
         await initAuth();
         subscribeToRentalRealtime();
