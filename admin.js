@@ -67,16 +67,22 @@ async function checkAdmin() {
 
     if (sessionError) {
         console.error(sessionError);
-        showAccessDenied();
+        showAccessDenied("Không thể kiểm tra phiên đăng nhập.");
         return false;
     }
 
     if (!session) {
-        showAccessDenied("Bạn chưa đăng nhập. Vui lòng đăng nhập tài khoản admin.");
+        showAccessDenied(
+            "Bạn chưa đăng nhập. Vui lòng đăng nhập tài khoản admin."
+        );
+
         return false;
     }
 
-    const { data: profile, error } = await db
+    const {
+        data: profile,
+        error
+    } = await db
         .from("profiles")
         .select("id, full_name, role")
         .eq("id", session.user.id)
@@ -84,16 +90,22 @@ async function checkAdmin() {
 
     if (error) {
         console.error(error);
-        showAccessDenied("Không thể kiểm tra quyền tài khoản.");
+
+        showAccessDenied(
+            "Không thể kiểm tra quyền tài khoản."
+        );
+
         return false;
     }
 
     if (profile.role !== "admin") {
-        showAccessDenied("Tài khoản này không có quyền admin.");
+        showAccessDenied(
+            "Tài khoản này không có quyền admin."
+        );
+
         return false;
     }
 
-    // Hiển thị giao diện admin
     if (accessNotice) {
         accessNotice.style.display = "none";
     }
@@ -102,7 +114,8 @@ async function checkAdmin() {
         adminContent.style.display = "block";
     }
 
-    const adminName = document.getElementById("admin-name");
+    const adminName =
+        document.getElementById("admin-name");
 
     if (adminName) {
         adminName.textContent =
@@ -114,14 +127,24 @@ async function checkAdmin() {
     return true;
 }
 
-function showAccessDenied(message = "Bạn không có quyền truy cập trang quản trị.") {
+function showAccessDenied(
+    message = "Bạn không có quyền truy cập trang quản trị."
+) {
     if (accessNotice) {
         accessNotice.style.display = "block";
+
         accessNotice.innerHTML = `
             <div style="padding:20px;text-align:center;">
                 <h2>Không có quyền truy cập</h2>
-                <p>${escapeHtml(message)}</p>
-                <button onclick="window.location.href='index.html'">
+
+                <p>
+                    ${escapeHtml(message)}
+                </p>
+
+                <button
+                    type="button"
+                    onclick="window.location.href='index.html'"
+                >
                     Về trang chủ
                 </button>
             </div>
@@ -138,41 +161,55 @@ function showAccessDenied(message = "Bạn không có quyền truy cập trang q
 // =========================
 
 if (imageInput) {
-    imageInput.addEventListener("change", function () {
-        const file = this.files?.[0];
+    imageInput.addEventListener(
+        "change",
+        function () {
 
-        if (!file) {
-            selectedFile = null;
+            const file = this.files?.[0];
 
-            if (imagePreview) {
-                imagePreview.style.display = "none";
-                imagePreview.src = "";
+            if (!file) {
+                selectedFile = null;
+
+                if (imagePreview) {
+                    imagePreview.style.display = "none";
+                    imagePreview.src = "";
+                }
+
+                return;
             }
 
-            return;
-        }
+            if (!file.type.startsWith("image/")) {
 
-        // Chỉ nhận hình ảnh
-        if (!file.type.startsWith("image/")) {
-            showMessage("Vui lòng chọn file hình ảnh.", "error");
-            this.value = "";
-            selectedFile = null;
-            return;
-        }
+                showMessage(
+                    "Vui lòng chọn file hình ảnh.",
+                    "error"
+                );
 
-        selectedFile = file;
+                this.value = "";
+                selectedFile = null;
 
-        const reader = new FileReader();
-
-        reader.onload = function (event) {
-            if (imagePreview) {
-                imagePreview.src = event.target.result;
-                imagePreview.style.display = "block";
+                return;
             }
-        };
 
-        reader.readAsDataURL(file);
-    });
+            selectedFile = file;
+
+            const reader = new FileReader();
+
+            reader.onload = function (event) {
+
+                if (imagePreview) {
+                    imagePreview.src =
+                        event.target.result;
+
+                    imagePreview.style.display =
+                        "block";
+                }
+
+            };
+
+            reader.readAsDataURL(file);
+        }
+    );
 }
 
 // =========================
@@ -180,12 +217,16 @@ if (imageInput) {
 // =========================
 
 async function uploadCharacterImage(file) {
+
     if (!file) {
         throw new Error("Chưa chọn ảnh.");
     }
 
     const extension =
-        file.name.split(".").pop()?.toLowerCase() || "jpg";
+        file.name
+            .split(".")
+            .pop()
+            ?.toLowerCase() || "jpg";
 
     const safeExtension =
         /^[a-z0-9]+$/.test(extension)
@@ -193,20 +234,34 @@ async function uploadCharacterImage(file) {
             : "jpg";
 
     const fileName =
-        crypto.randomUUID() + "." + safeExtension;
+        crypto.randomUUID() +
+        "." +
+        safeExtension;
 
-    const filePath = "characters/" + fileName;
+    const filePath =
+        "characters/" +
+        fileName;
 
-    const { error: uploadError } = await db.storage
+    const {
+        error: uploadError
+    } = await db.storage
         .from(BUCKET)
-        .upload(filePath, file, {
-            cacheControl: "3600",
-            upsert: false,
-            contentType: file.type
-        });
+        .upload(
+            filePath,
+            file,
+            {
+                cacheControl: "3600",
+                upsert: false,
+                contentType: file.type
+            }
+        );
 
     if (uploadError) {
-        console.error("Upload error:", uploadError);
+        console.error(
+            "Upload error:",
+            uploadError
+        );
+
         throw uploadError;
     }
 
@@ -217,7 +272,9 @@ async function uploadCharacterImage(file) {
         .getPublicUrl(filePath);
 
     if (!publicUrlData?.publicUrl) {
-        throw new Error("Không lấy được URL ảnh.");
+        throw new Error(
+            "Không lấy được URL ảnh."
+        );
     }
 
     return {
@@ -227,137 +284,271 @@ async function uploadCharacterImage(file) {
 }
 
 // =========================
+// GET STORAGE PATH FROM URL
+// =========================
+
+function getStoragePathFromUrl(imageUrl) {
+
+    if (!imageUrl) {
+        return null;
+    }
+
+    try {
+
+        const marker =
+            `/storage/v1/object/public/${BUCKET}/`;
+
+        const index =
+            imageUrl.indexOf(marker);
+
+        if (index === -1) {
+            return null;
+        }
+
+        return decodeURIComponent(
+            imageUrl.substring(
+                index + marker.length
+            )
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Không thể lấy storage path:",
+            error
+        );
+
+        return null;
+    }
+}
+
+// =========================
 // ADD CHARACTER
 // =========================
 
 if (characterForm) {
-    characterForm.addEventListener("submit", async function (event) {
-        event.preventDefault();
 
-        const submitButton =
-            characterForm.querySelector("button[type='submit']");
+    characterForm.addEventListener(
+        "submit",
+        async function (event) {
 
-        if (submitButton) {
-            submitButton.disabled = true;
-            submitButton.textContent = "Đang upload...";
-        }
+            event.preventDefault();
 
-        try {
-            const name =
-                document.getElementById("character-name")?.value.trim();
-
-            const category =
-                document.getElementById("character-category")?.value.trim();
-
-            const price =
-                Number(
-                    document.getElementById("character-price")?.value || 0
+            const submitButton =
+                characterForm.querySelector(
+                    "button[type='submit']"
                 );
 
-            const description =
-                document.getElementById("character-description")?.value.trim();
-
-            const includedText =
-                document.getElementById("character-items")?.value.trim();
-
-            const isActive =
-                document.getElementById("character-active")?.checked ?? true;
-
-            // Kiểm tra dữ liệu
-            if (!name) {
-                throw new Error("Vui lòng nhập tên nhân vật.");
-            }
-
-            if (!category) {
-                throw new Error("Vui lòng nhập thể loại.");
-            }
-
-            if (!price || price < 0) {
-                throw new Error("Vui lòng nhập giá thuê hợp lệ.");
-            }
-
-            if (!selectedFile) {
-                throw new Error("Vui lòng chọn ảnh nhân vật.");
-            }
-
-            // Danh sách phụ kiện
-            const includedItems = includedText
-                ? includedText
-                    .split("\n")
-                    .map(item => item.trim())
-                    .filter(Boolean)
-                : [];
-
-            // Upload ảnh
-            const uploaded = await uploadCharacterImage(selectedFile);
-
             if (submitButton) {
-                submitButton.textContent = "Đang lưu nhân vật...";
+                submitButton.disabled = true;
+                submitButton.textContent =
+                    "Đang upload...";
             }
 
-            // Lưu nhân vật vào database
-            const { data: character, error: insertError } =
-                await db
+            try {
+
+                const name =
+                    document
+                        .getElementById(
+                            "character-name"
+                        )
+                        ?.value
+                        .trim();
+
+                const category =
+                    document
+                        .getElementById(
+                            "character-category"
+                        )
+                        ?.value
+                        .trim();
+
+                const price =
+                    Number(
+                        document
+                            .getElementById(
+                                "character-price"
+                            )
+                            ?.value || 0
+                    );
+
+                const description =
+                    document
+                        .getElementById(
+                            "character-description"
+                        )
+                        ?.value
+                        .trim();
+
+                const includedText =
+                    document
+                        .getElementById(
+                            "character-items"
+                        )
+                        ?.value
+                        .trim();
+
+                const isActive =
+                    document
+                        .getElementById(
+                            "character-active"
+                        )
+                        ?.checked ?? true;
+
+                // =====================
+                // VALIDATE
+                // =====================
+
+                if (!name) {
+                    throw new Error(
+                        "Vui lòng nhập tên nhân vật."
+                    );
+                }
+
+                if (!category) {
+                    throw new Error(
+                        "Vui lòng nhập thể loại."
+                    );
+                }
+
+                if (price < 0) {
+                    throw new Error(
+                        "Giá thuê không được âm."
+                    );
+                }
+
+                if (!selectedFile) {
+                    throw new Error(
+                        "Vui lòng chọn ảnh nhân vật."
+                    );
+                }
+
+                // =====================
+                // INCLUDED ITEMS
+                // =====================
+
+                const includedItems =
+                    includedText
+                        ? includedText
+                            .split("\n")
+                            .map(
+                                item =>
+                                    item.trim()
+                            )
+                            .filter(Boolean)
+                        : [];
+
+                // =====================
+                // UPLOAD
+                // =====================
+
+                const uploaded =
+                    await uploadCharacterImage(
+                        selectedFile
+                    );
+
+                if (submitButton) {
+                    submitButton.textContent =
+                        "Đang lưu nhân vật...";
+                }
+
+                // =====================
+                // DATABASE
+                // =====================
+
+                const {
+                    data: character,
+                    error: insertError
+                } = await db
                     .from("characters")
                     .insert({
                         name: name,
                         category: category,
-                        description: description || null,
+                        description:
+                            description || null,
                         price_per_day: price,
-                        image_url: uploaded.url,
-                        included_items: includedItems,
-                        is_active: isActive
+                        image_url:
+                            uploaded.url,
+                        included_items:
+                            includedItems,
+                        is_active:
+                            isActive
                     })
                     .select()
                     .single();
 
-            if (insertError) {
-                console.error("Character insert error:", insertError);
+                // =====================
+                // ROLLBACK IMAGE
+                // =====================
 
-                // Nếu lưu database thất bại,
-                // xóa ảnh vừa upload để tránh ảnh rác.
-                await db.storage
-                    .from(BUCKET)
-                    .remove([uploaded.path]);
+                if (insertError) {
 
-                throw insertError;
-            }
+                    console.error(
+                        "Character insert error:",
+                        insertError
+                    );
 
-            console.log("Character created:", character);
+                    await db.storage
+                        .from(BUCKET)
+                        .remove([
+                            uploaded.path
+                        ]);
 
-            showMessage(
-                "Đã thêm nhân vật và upload ảnh thành công!",
-                "success"
-            );
+                    throw insertError;
+                }
 
-            // Reset form
-            characterForm.reset();
-            selectedFile = null;
+                console.log(
+                    "Character created:",
+                    character
+                );
 
-            if (imagePreview) {
-                imagePreview.src = "";
-                imagePreview.style.display = "none";
-            }
+                showMessage(
+                    "Đã thêm nhân vật thành công!",
+                    "success"
+                );
 
-            // Tải lại danh sách
-            await loadCharacters();
+                // =====================
+                // RESET
+                // =====================
 
-        } catch (error) {
-            console.error(error);
+                characterForm.reset();
 
-            showMessage(
-                "Có lỗi: " + (error.message || error),
-                "error"
-            );
+                selectedFile = null;
 
-        } finally {
-            if (submitButton) {
-                submitButton.disabled = false;
-                submitButton.textContent =
-                    "Upload ảnh & lưu nhân vật";
+                if (imagePreview) {
+                    imagePreview.src = "";
+                    imagePreview.style.display =
+                        "none";
+                }
+
+                // =====================
+                // REFRESH LIST
+                // =====================
+
+                await loadCharacters();
+
+            } catch (error) {
+
+                console.error(error);
+
+                showMessage(
+                    "Có lỗi: " +
+                    (error.message || error),
+                    "error"
+                );
+
+            } finally {
+
+                if (submitButton) {
+                    submitButton.disabled =
+                        false;
+
+                    submitButton.textContent =
+                        "Upload ảnh & lưu nhân vật";
+                }
             }
         }
-    });
+    );
 }
 
 // =========================
@@ -365,7 +556,10 @@ if (characterForm) {
 // =========================
 
 async function loadCharacters() {
-    if (!characterList) return;
+
+    if (!characterList) {
+        return;
+    }
 
     characterList.innerHTML = `
         <p>Đang tải danh sách nhân vật...</p>
@@ -377,15 +571,20 @@ async function loadCharacters() {
     } = await db
         .from("characters")
         .select("*")
-        .order("created_at", {
-            ascending: false
-        });
+        .order(
+            "created_at",
+            {
+                ascending: false
+            }
+        );
 
     if (error) {
+
         console.error(error);
 
         characterList.innerHTML = `
-            <div class="admin-message error">
+            <div class="admin-message error"
+                 style="display:block;">
                 Không thể tải danh sách nhân vật.
                 <br>
                 ${escapeHtml(error.message)}
@@ -396,6 +595,7 @@ async function loadCharacters() {
     }
 
     if (!data || data.length === 0) {
+
         characterList.innerHTML = `
             <p>Chưa có nhân vật nào.</p>
         `;
@@ -403,78 +603,136 @@ async function loadCharacters() {
         return;
     }
 
-    characterList.innerHTML = data.map(character => {
-        const image = character.image_url
-            ? `<img
-                src="${escapeHtml(character.image_url)}"
-                alt="${escapeHtml(character.name)}"
-                class="admin-character-image"
-              >`
-            : `
-                <div class="admin-character-no-image">
-                    Chưa có ảnh
-                </div>
-              `;
+    characterList.innerHTML =
+        data
+            .map(character => {
 
-        return `
-            <div class="admin-character-card">
+                const image =
+                    character.image_url
+                        ? `
+                            <img
+                                src="${escapeHtml(
+                                    character.image_url
+                                )}"
+                                alt="${escapeHtml(
+                                    character.name
+                                )}"
+                                class="admin-character-image"
+                            >
+                        `
+                        : `
+                            <div
+                                class="admin-character-no-image"
+                            >
+                                Chưa có ảnh
+                            </div>
+                        `;
 
-                ${image}
-
-                <div class="admin-character-info">
-
-                    <h3>
-                        ${escapeHtml(character.name)}
-                    </h3>
-
-                    <p>
-                        ${escapeHtml(character.category || "")}
-                    </p>
-
-                    <strong>
-                        ${formatPrice(character.price_per_day)}
-                        / ngày
-                    </strong>
-
-                    <p>
-                        Trạng thái:
-                        <b>
-                            ${
-                                character.is_active
-                                    ? "Đang hiển thị"
-                                    : "Đang ẩn"
-                            }
-                        </b>
-                    </p>
-
-                    <button
-                        type="button"
-                        onclick="toggleCharacterStatus(
-                            ${character.id},
-                            ${character.is_active}
-                        )"
+                return `
+                    <div
+                        class="admin-character-card"
                     >
-                        ${
-                            character.is_active
-                                ? "Ẩn nhân vật"
-                                : "Hiện nhân vật"
-                        }
-                    </button>
 
-                </div>
+                        ${image}
 
-            </div>
-        `;
-    }).join("");
+                        <div
+                            class="admin-character-info"
+                        >
+
+                            <h3>
+                                ${escapeHtml(
+                                    character.name
+                                )}
+                            </h3>
+
+                            <p>
+                                ${escapeHtml(
+                                    character.category ||
+                                    ""
+                                )}
+                            </p>
+
+                            <strong>
+                                ${formatPrice(
+                                    character.price_per_day
+                                )}
+                                / ngày
+                            </strong>
+
+                            <p>
+                                Trạng thái:
+                                <b>
+                                    ${
+                                        character.is_active
+                                            ? "Đang hiển thị"
+                                            : "Đang ẩn"
+                                    }
+                                </b>
+                            </p>
+
+                            <div
+                                style="
+                                    display:flex;
+                                    gap:8px;
+                                    flex-wrap:wrap;
+                                    margin-top:10px;
+                                "
+                            >
+
+                                <button
+                                    type="button"
+                                    onclick="toggleCharacterStatus(
+                                        ${character.id},
+                                        ${character.is_active}
+                                    )"
+                                >
+                                    ${
+                                        character.is_active
+                                            ? "Ẩn nhân vật"
+                                            : "Hiện nhân vật"
+                                    }
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onclick="deleteCharacter(
+                                        ${character.id},
+                                        '${escapeHtml(
+                                            character.name
+                                        )}',
+                                        '${escapeHtml(
+                                            character.image_url || ""
+                                        )}'
+                                    )"
+                                    style="
+                                        background:#ffe7e7;
+                                        color:#a51d35;
+                                    "
+                                >
+                                    🗑️ Xóa
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+                `;
+            })
+            .join("");
 }
 
 // =========================
 // HIDE / SHOW CHARACTER
 // =========================
 
-async function toggleCharacterStatus(id, currentStatus) {
+async function toggleCharacterStatus(
+    id,
+    currentStatus
+) {
 
-    const newStatus = !currentStatus;
+    const newStatus =
+        !currentStatus;
 
     const {
         error
@@ -486,6 +744,7 @@ async function toggleCharacterStatus(id, currentStatus) {
         .eq("id", id);
 
     if (error) {
+
         console.error(error);
 
         showMessage(
@@ -508,30 +767,144 @@ async function toggleCharacterStatus(id, currentStatus) {
 }
 
 // =========================
+// DELETE CHARACTER
+// =========================
+
+async function deleteCharacter(
+    id,
+    name,
+    imageUrl
+) {
+
+    const confirmed =
+        confirm(
+            `Bạn có chắc muốn xóa "${name}"?\n\n` +
+            "Sản phẩm sẽ bị xóa khỏi danh sách shop."
+        );
+
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+
+        // =====================
+        // 1. DELETE DATABASE
+        // =====================
+
+        const {
+            error: deleteError
+        } = await db
+            .from("characters")
+            .delete()
+            .eq("id", id);
+
+        if (deleteError) {
+            console.error(
+                "Delete character error:",
+                deleteError
+            );
+
+            throw deleteError;
+        }
+
+        // =====================
+        // 2. DELETE IMAGE
+        // =====================
+
+        const imagePath =
+            getStoragePathFromUrl(
+                imageUrl
+            );
+
+        if (imagePath) {
+
+            const {
+                error: storageError
+            } = await db.storage
+                .from(BUCKET)
+                .remove([
+                    imagePath
+                ]);
+
+            if (storageError) {
+
+                console.warn(
+                    "Không xóa được ảnh:",
+                    storageError
+                );
+
+                showMessage(
+                    `Đã xóa "${name}" khỏi shop, ` +
+                    "nhưng ảnh trong Storage chưa xóa được.",
+                    "error"
+                );
+
+            } else {
+
+                showMessage(
+                    `Đã xóa "${name}" thành công.`,
+                    "success"
+                );
+            }
+
+        } else {
+
+            showMessage(
+                `Đã xóa "${name}" khỏi shop.`,
+                "success"
+            );
+        }
+
+        // =====================
+        // 3. REFRESH
+        // =====================
+
+        await loadCharacters();
+
+    } catch (error) {
+
+        console.error(error);
+
+        showMessage(
+            "Không thể xóa nhân vật: " +
+            (error.message || error),
+            "error"
+        );
+    }
+}
+
+// =========================
 // LOGOUT
 // =========================
 
 if (logoutButton) {
-    logoutButton.addEventListener("click", async function () {
 
-        const {
-            error
-        } = await db.auth.signOut();
+    logoutButton.addEventListener(
+        "click",
+        async function () {
 
-        if (error) {
-            console.error(error);
+            const {
+                error
+            } = await db.auth.signOut();
 
-            showMessage(
-                "Đăng xuất thất bại: " +
-                error.message,
-                "error"
-            );
+            if (error) {
 
-            return;
+                console.error(error);
+
+                showMessage(
+                    "Đăng xuất thất bại: " +
+                    error.message,
+                    "error"
+                );
+
+                return;
+            }
+
+            window.location.href =
+                "index.html";
         }
-
-        window.location.href = "index.html";
-    });
+    );
 }
 
 // =========================
@@ -539,22 +912,29 @@ if (logoutButton) {
 // =========================
 
 if (shopButton) {
-    shopButton.addEventListener("click", function () {
-        window.location.href = "index.html";
-    });
+
+    shopButton.addEventListener(
+        "click",
+        function () {
+            window.location.href =
+                "index.html";
+        }
+    );
 }
 
 // =========================
 // AUTH STATE
 // =========================
 
-db.auth.onAuthStateChange((event, session) => {
+db.auth.onAuthStateChange(
+    (event, session) => {
 
-    if (!session) {
-        window.location.href = "index.html";
+        if (!session) {
+            window.location.href =
+                "index.html";
+        }
     }
-
-});
+);
 
 // =========================
 // INIT
@@ -562,7 +942,8 @@ db.auth.onAuthStateChange((event, session) => {
 
 async function initAdmin() {
 
-    const isAdmin = await checkAdmin();
+    const isAdmin =
+        await checkAdmin();
 
     if (!isAdmin) {
         return;
