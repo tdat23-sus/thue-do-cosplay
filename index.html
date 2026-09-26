@@ -1,1712 +1,413 @@
-/* =========================================
-   SUPABASE + AUTH
-========================================= */
-
-const SUPABASE_URL =
-    "https://rydkgmtlmhjftbwukzdn.supabase.co";
-
-const SUPABASE_PUBLISHABLE_KEY =
-    "sb_publishable_wIOEpyFJLjH_aWSwnUIF-g_WCvEUOot";
-
-const supabaseClient =
-    window.supabase.createClient(
-        SUPABASE_URL,
-        SUPABASE_PUBLISHABLE_KEY
-    );
-
-let currentUser = null;
-let currentProfile = null;
-let authMode = "login";
-let pendingBookingDay = null;
-
-
-/* =========================================
-   AUTH MODAL
-========================================= */
-
-function openAuthModal(message = "") {
-
-    const modal =
-        document.getElementById("auth-modal");
-
-    document.getElementById("auth-message")
-        .textContent = message;
-
-    modal.classList.remove("hidden");
-
-    setAuthMode(authMode);
-
-    setTimeout(() => {
-
-        document
-            .getElementById("auth-email")
-            .focus();
-
-    }, 50);
-}
-
-
-function closeAuthModal() {
-
-    document
-        .getElementById("auth-modal")
-        .classList.add("hidden");
-
-}
-
-
-function toggleAuthMode() {
-
-    setAuthMode(
-        authMode === "login"
-            ? "register"
-            : "login"
-    );
-}
-
-
-function setAuthMode(mode) {
-
-    authMode = mode;
-
-    const register =
-        mode === "register";
-
-
-    document
-        .getElementById("auth-title")
-        .textContent =
-        register
-            ? "Tạo tài khoản"
-            : "Đăng nhập";
-
-
-    document
-        .getElementById("auth-submit")
-        .textContent =
-        register
-            ? "Đăng ký"
-            : "Đăng nhập";
-
-
-    document
-        .getElementById("auth-name-label")
-        .classList
-        .toggle(
-            "hidden",
-            !register
-        );
-
-
-    document
-        .getElementById("auth-switch-text")
-        .textContent =
-        register
-            ? "Đã có tài khoản?"
-            : "Chưa có tài khoản?";
-
-
-    document
-        .getElementById("auth-switch")
-        .textContent =
-        register
-            ? "Đăng nhập"
-            : "Đăng ký";
-}
-
-
-/* =========================================
-   AUTH SUBMIT
-========================================= */
-
-async function handleAuthSubmit(event) {
-
-    event.preventDefault();
-
-
-    const email =
-        document
-            .getElementById("auth-email")
-            .value
-            .trim();
-
-
-    const password =
-        document
-            .getElementById("auth-password")
-            .value;
-
-
-    const name =
-        document
-            .getElementById("auth-name")
-            .value
-            .trim();
-
-
-    const submitButton =
-        document
-            .getElementById("auth-submit");
-
-
-    submitButton.disabled = true;
-
-    submitButton.textContent =
-        "Đang xử lý...";
-
-
-    try {
-
-        /* =========================
-           REGISTER
-        ========================= */
-
-        if (authMode === "register") {
-
-            const { data, error } =
-                await supabaseClient.auth.signUp({
-
-                    email,
-
-                    password,
-
-                    options: {
-
-                        data: {
-                            full_name: name
-                        }
-
-                    }
-
-                });
-
-
-            if (error)
-                throw error;
-
-
-            if (data.session) {
-
-                showToast(
-                    "Tạo tài khoản thành công!"
-                );
-
-            } else {
-
-                showToast(
-                    "Đăng ký thành công. Kiểm tra email nếu Supabase yêu cầu xác nhận."
-                );
-
-            }
-
-
-            closeAuthModal();
-
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta name="description" content="Chiyoo Shop - Cho thuê trang phục cosplay">
+
+    <title>Chiyoo Shop - Cho thuê cosplay</title>
+
+    <link rel="stylesheet" href="style.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        .auth-area{display:flex;align-items:center;gap:8px;margin-left:10px}
+        .auth-button{border:1px solid rgba(0,0,0,.12);background:#fff;border-radius:999px;padding:9px 14px;cursor:pointer;font:inherit}
+        .auth-button.primary{background:#222;color:#fff;border-color:#222}
+        .auth-user{display:none;align-items:center;gap:8px;font-size:13px}
+        .auth-user-name{max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .auth-role{font-size:10px;padding:3px 7px;border-radius:999px;background:#eee}
+        .auth-message{margin:0 0 14px;color:#666;font-size:14px}
+        .auth-switch{border:0;background:none;text-decoration:underline;cursor:pointer;font:inherit;padding:4px}
+        @media(max-width:650px){
+            .auth-user-name{display:none}
+            .auth-button{padding:8px 11px}
+            .header-inner{gap:6px}
         }
+    </style>
+</head>
 
+<body>
 
-        /* =========================
-           LOGIN
-        ========================= */
+    <!-- HEADER -->
+    <header class="header">
 
-        else {
+        <div class="header-inner">
 
-            const { error } =
-                await supabaseClient
-                    .auth
-                    .signInWithPassword({
+            <a href="#" class="logo" onclick="goHome()">
+                <span class="logo-icon">✦</span>
+                <span>Chiyoo Shop</span>
+            </a>
 
-                        email,
+            <button class="search-button" onclick="focusSearch()">
+                🔍
+            </button>
 
-                        password
+            <div class="auth-area">
+                <button id="auth-button" class="auth-button primary" onclick="openAuthModal()">
+                    Đăng nhập
+                </button>
 
-                    });
+                <div id="auth-user" class="auth-user">
+                    <span id="auth-user-name" class="auth-user-name"></span>
+                    <span id="auth-user-role" class="auth-role"></span>
+                    <button class="auth-button" onclick="signOutUser()">Thoát</button>
+                </div>
+            </div>
 
+        </div>
 
-            if (error)
-                throw error;
+    </header>
 
 
-            closeAuthModal();
+    <!-- MAIN -->
+    <main>
 
+        <!-- HOME -->
+        <section id="home-page">
 
-            showToast(
-                "Đăng nhập thành công!"
-            );
+            <section class="hero">
 
+                <div class="hero-content">
 
-            /*
-               Nếu người dùng bấm vào
-               một ngày thuê trước khi
-               đăng nhập, sau khi đăng nhập
-               sẽ quay lại cửa sổ thuê.
-            */
+                    <p class="hero-small">
+                        CHIYOO SHOP
+                    </p>
 
-            if (
-                pendingBookingDay !== null
-            ) {
+                    <h1>
+                        Chọn nhân vật.<br>
+                        Chọn ngày. <span>Thuê ngay.</span>
+                    </h1>
 
-                const day =
-                    pendingBookingDay;
+                    <p class="hero-description">
+                        Khám phá các bộ cosplay đang có sẵn
+                        và kiểm tra lịch thuê của từng nhân vật.
+                    </p>
 
+                </div>
 
-                pendingBookingDay =
-                    null;
+            </section>
 
 
-                setTimeout(() => {
+            <!-- SEARCH -->
+            <section class="search-section">
 
-                    openBooking(day);
+                <div class="search-box">
 
-                }, 150);
+                    <span>🔍</span>
 
-            }
+                    <input
+                        id="search-input"
+                        type="text"
+                        placeholder="Tìm tên nhân vật..."
+                        oninput="searchCharacters()"
+                    >
 
-        }
+                </div>
 
+            </section>
 
-    } catch (error) {
 
-        console.error(
-            "AUTH ERROR:",
-            error
-        );
+            <!-- CHARACTER -->
+            <section class="characters-section">
 
+                <div class="section-heading">
 
-        document
-            .getElementById("auth-message")
-            .textContent =
-            translateAuthError(
-                error.message
-            );
+                    <div>
+                        <p class="section-small">
+                            COLLECTION
+                        </p>
 
+                        <h2>
+                            Nhân vật
+                        </h2>
+                    </div>
 
-    } finally {
+                    <span id="character-count"></span>
 
-        submitButton.disabled = false;
+                </div>
 
 
-        submitButton.textContent =
-            authMode === "register"
-                ? "Đăng ký"
-                : "Đăng nhập";
+                <div id="character-list" class="character-grid"></div>
 
-    }
+            </section>
 
-}
+        </section>
 
 
-/* =========================================
-   AUTH ERROR TRANSLATION
-========================================= */
+        <!-- CHARACTER DETAIL -->
+        <section id="character-page" class="character-page hidden">
 
-function translateAuthError(message) {
+            <button class="back-button" onclick="goHome()">
+                ← Quay lại
+            </button>
 
-    if (!message)
-        return "Có lỗi xảy ra.";
 
+            <div class="character-detail">
 
-    if (
-        message.includes(
-            "Invalid login credentials"
-        )
-    ) {
+                <div class="detail-image-wrapper">
 
-        return "Email hoặc mật khẩu không đúng.";
+                    <img
+                        id="detail-image"
+                        src=""
+                        alt=""
+                        class="detail-image"
+                    >
 
-    }
+                </div>
 
 
-    if (
-        message.includes(
-            "User already registered"
-        )
-    ) {
+                <div class="detail-info">
 
-        return "Email này đã được đăng ký.";
+                    <p id="detail-category" class="detail-category"></p>
 
-    }
+                    <h1 id="detail-name"></h1>
 
+                    <p id="detail-description" class="detail-description"></p>
 
-    if (
-        message.includes(
-            "Password should be at least"
-        )
-    ) {
 
-        return "Mật khẩu phải có ít nhất 6 ký tự.";
+                    <div class="price-box">
 
-    }
+                        <span>Giá thuê</span>
 
+                        <strong id="detail-price"></strong>
 
-    if (
-        message.includes(
-            "Email not confirmed"
-        )
-    ) {
+                    </div>
 
-        return "Email chưa được xác nhận.";
 
-    }
+                    <div class="included">
 
+                        <h3>Bộ cosplay gồm</h3>
 
-    return message;
-}
+                        <ul id="detail-items"></ul>
 
+                    </div>
 
-/* =========================================
-   LOGOUT
-========================================= */
+                </div>
 
-async function signOutUser() {
+            </div>
 
-    const { error } =
-        await supabaseClient
-            .auth
-            .signOut();
 
+            <!-- CALENDAR -->
 
-    if (error) {
+            <section class="calendar-section">
 
-        console.error(error);
+                <div class="calendar-header">
 
-        showToast(
-            "Không thể đăng xuất."
-        );
+                    <div>
+                        <p class="section-small">
+                            AVAILABILITY
+                        </p>
 
-        return;
-    }
+                        <h2>
+                            Lịch thuê
+                        </h2>
+                    </div>
 
 
-    showToast(
-        "Đã đăng xuất."
-    );
-}
+                    <div class="month-control">
 
+                        <button onclick="previousMonth()">
+                            ‹
+                        </button>
 
-/* =========================================
-   LOAD PROFILE
-========================================= */
+                        <strong id="month-title"></strong>
 
-async function loadCurrentProfile(user) {
+                        <button onclick="nextMonth()">
+                            ›
+                        </button>
 
-    currentUser = user;
+                    </div>
 
-    currentProfile = null;
+                </div>
 
 
-    if (!user) {
+                <div class="calendar-legend">
 
-        updateAuthUI();
+                    <span>
+                        <i class="dot available"></i>
+                        Còn trống
+                    </span>
 
-        return;
-    }
+                    <span>
+                        <i class="dot rented"></i>
+                        Đã thuê
+                    </span>
 
+                </div>
 
-    const { data, error } =
-        await supabaseClient
-            .from("profiles")
-            .select(
-                "id, full_name, phone, avatar_url, role"
-            )
-            .eq(
-                "id",
-                user.id
-            )
-            .maybeSingle();
 
+                <div id="calendar" class="calendar"></div>
 
-    if (error) {
 
-        console.error(
-            "PROFILE ERROR:",
-            error
-        );
+                <div class="booking-note">
 
-    } else {
+                    <span>💡</span>
 
-        currentProfile = data;
+                    <p>
+                        Chọn một ngày còn trống để gửi yêu cầu thuê.
+                    </p>
 
-    }
+                </div>
 
+            </section>
 
-    updateAuthUI();
-}
+        </section>
 
+    </main>
 
-/* =========================================
-   UPDATE AUTH UI
-========================================= */
 
-function updateAuthUI() {
+    <!-- AUTH MODAL -->
+    <div id="auth-modal" class="modal hidden">
 
-    const button =
-        document.getElementById(
-            "auth-button"
-        );
+        <div class="modal-box">
 
+            <button class="modal-close" onclick="closeAuthModal()">×</button>
 
-    const userBox =
-        document.getElementById(
-            "auth-user"
-        );
+            <p class="section-small">CHIYOO SHOP</p>
 
+            <h2 id="auth-title">Đăng nhập</h2>
 
-    const name =
-        document.getElementById(
-            "auth-user-name"
-        );
+            <p id="auth-message" class="auth-message"></p>
 
+            <form id="auth-form" onsubmit="handleAuthSubmit(event)">
 
-    const role =
-        document.getElementById(
-            "auth-user-role"
-        );
+                <label id="auth-name-label" class="hidden">
+                    Họ và tên
 
+                    <input
+                        id="auth-name"
+                        type="text"
+                        placeholder="Nguyễn Văn A"
+                    >
+                </label>
 
-    if (!button || !userBox)
-        return;
+                <label>
+                    Email
 
+                    <input
+                        id="auth-email"
+                        type="email"
+                        placeholder="email@example.com"
+                        required
+                    >
+                </label>
 
-    /* =========================
-       NOT LOGGED IN
-    ========================= */
+                <label>
+                    Mật khẩu
 
-    if (!currentUser) {
+                    <input
+                        id="auth-password"
+                        type="password"
+                        placeholder="Ít nhất 6 ký tự"
+                        minlength="6"
+                        required
+                    >
+                </label>
 
-        button.style.display =
-            "inline-block";
+                <button id="auth-submit" class="submit-button" type="submit">
+                    Đăng nhập
+                </button>
 
-        userBox.style.display =
-            "none";
+            </form>
 
-        return;
-    }
-
-
-    /* =========================
-       LOGGED IN
-    ========================= */
-
-    button.style.display =
-        "none";
-
-    userBox.style.display =
-        "flex";
-
-
-    name.textContent =
-        currentProfile?.full_name ||
-        currentUser.email ||
-        "Tài khoản";
-
-
-    const isAdmin =
-        currentProfile?.role === "admin";
-
-
-    role.textContent =
-        isAdmin
-            ? "ADMIN"
-            : "KHÁCH";
-
-
-    role.style.display =
-        "inline-block";
-}
-
-
-/* =========================================
-   AUTH STATE LISTENER
-========================================= */
-
-supabaseClient
-    .auth
-    .onAuthStateChange(
-        (_event, session) => {
-
-            setTimeout(() => {
-
-                loadCurrentProfile(
-                    session?.user || null
-                );
-
-            }, 0);
-
-        }
-    );
-
-
-/* =========================================
-   INIT AUTH
-========================================= */
-
-async function initAuth() {
-
-    const { data, error } =
-        await supabaseClient
-            .auth
-            .getSession();
-
-
-    if (error) {
-
-        console.error(
-            "SESSION ERROR:",
-            error
-        );
-
-        return;
-    }
-
-
-    await loadCurrentProfile(
-        data.session?.user || null
-    );
-}
-
-
-/* =========================================
-   CHARACTER DATA
-========================================= */
-
-const characters = [
-
-    {
-        id: "hutao",
-
-        name: "Hu Tao",
-
-        category: "Genshin Impact",
-
-        price: "250.000đ / ngày",
-
-        description:
-            "Bộ cosplay Hu Tao với trang phục và phụ kiện cơ bản.",
-
-        image:
-            "https://placehold.co/700x900/e8dce5/332b33?text=HU+TAO",
-
-        items: [
-
-            "Trang phục Hu Tao",
-
-            "Tóc giả",
-
-            "Phụ kiện",
-
-            "Các chi tiết đi kèm"
-
-        ],
-
-        rentedDays: [
-
-            5,
-
-            12,
-
-            18,
-
-            19,
-
-            25
-
-        ]
-
-    },
-
-
-    {
-        id: "furina",
-
-        name: "Furina",
-
-        category: "Genshin Impact",
-
-        price: "300.000đ / ngày",
-
-        description:
-            "Bộ cosplay Furina phong cách Fontaine.",
-
-        image:
-            "https://placehold.co/700x900/dce7f0/28313b?text=FURINA",
-
-        items: [
-
-            "Trang phục Furina",
-
-            "Tóc giả",
-
-            "Phụ kiện",
-
-            "Trang sức"
-
-        ],
-
-        rentedDays: [
-
-            3,
-
-            4,
-
-            15,
-
-            22
-
-        ]
-
-    },
-
-
-    {
-        id: "miku",
-
-        name: "Hatsune Miku",
-
-        category: "Vocaloid",
-
-        price: "200.000đ / ngày",
-
-        description:
-            "Bộ cosplay Hatsune Miku với tóc giả và phụ kiện.",
-
-        image:
-            "https://placehold.co/700x900/dcefeb/263634?text=MIKU",
-
-        items: [
-
-            "Trang phục",
-
-            "Tóc giả xanh",
-
-            "Phụ kiện",
-
-            "Cà vạt"
-
-        ],
-
-        rentedDays: [
-
-            7,
-
-            8,
-
-            20
-
-        ]
-
-    },
-
-
-    {
-        id: "kafka",
-
-        name: "Kafka",
-
-        category: "Honkai: Star Rail",
-
-        price: "300.000đ / ngày",
-
-        description:
-            "Bộ cosplay Kafka phong cách Honkai: Star Rail.",
-
-        image:
-            "https://placehold.co/700x900/e9dce1/352c30?text=KAFKA",
-
-        items: [
-
-            "Trang phục Kafka",
-
-            "Tóc giả",
-
-            "Kính",
-
-            "Phụ kiện"
-
-        ],
-
-        rentedDays: [
-
-            2,
-
-            10,
-
-            11,
-
-            27
-
-        ]
-
-    },
-
-
-    {
-        id: "raiden",
-
-        name: "Raiden Shogun",
-
-        category: "Genshin Impact",
-
-        price: "280.000đ / ngày",
-
-        description:
-            "Bộ cosplay Raiden Shogun với trang phục và phụ kiện.",
-
-        image:
-            "https://placehold.co/700x900/e2dff0/302d3d?text=RAIDEN",
-
-        items: [
-
-            "Trang phục",
-
-            "Tóc giả",
-
-            "Phụ kiện",
-
-            "Đạo cụ"
-
-        ],
-
-        rentedDays: [
-
-            6,
-
-            14,
-
-            21,
-
-            28
-
-        ]
-
-    },
-
-
-    {
-        id: "navia",
-
-        name: "Navia",
-
-        category: "Genshin Impact",
-
-        price: "280.000đ / ngày",
-
-        description:
-            "Bộ cosplay Navia phong cách Fontaine.",
-
-        image:
-            "https://placehold.co/700x900/f0e2cf/3b3328?text=NAVIA",
-
-        items: [
-
-            "Trang phục Navia",
-
-            "Tóc giả",
-
-            "Mũ",
-
-            "Phụ kiện"
-
-        ],
-
-        rentedDays: [
-
-            9,
-
-            16,
-
-            23
-
-        ]
-
-    }
-
-];
-
-
-/* =========================================
-   STATE
-========================================= */
-
-let selectedCharacter = null;
-
-let currentMonth = 8;
-
-let currentYear = 2026;
-
-
-/* =========================================
-   ELEMENTS
-========================================= */
-
-const characterList =
-    document.getElementById(
-        "character-list"
-    );
-
-
-const characterCount =
-    document.getElementById(
-        "character-count"
-    );
-
-
-const homePage =
-    document.getElementById(
-        "home-page"
-    );
-
-
-const characterPage =
-    document.getElementById(
-        "character-page"
-    );
-
-
-/* =========================================
-   SHOW CHARACTERS
-========================================= */
-
-function showCharacters(
-    list = characters
-) {
-
-    characterList.innerHTML = "";
-
-
-    characterCount.textContent =
-        `${list.length} nhân vật`;
-
-
-    if (list.length === 0) {
-
-        characterList.innerHTML = `
-
-            <p
-                style="
-                    grid-column:1/-1;
-                    color:#888;
-                "
-            >
-                Không tìm thấy nhân vật.
+            <p style="margin-top:14px;text-align:center;font-size:14px;">
+                <span id="auth-switch-text">Chưa có tài khoản?</span>
+                <button id="auth-switch" class="auth-switch" type="button" onclick="toggleAuthMode()">
+                    Đăng ký
+                </button>
             </p>
 
-        `;
-
-        return;
-    }
+        </div>
+    </div>
 
 
-    list.forEach(character => {
+    <!-- BOOKING MODAL -->
 
-        const card =
-            document.createElement(
-                "article"
-            );
+    <div id="booking-modal" class="modal hidden">
 
+        <div class="modal-overlay" onclick="closeBooking()"></div>
 
-        card.className =
-            "character-card";
+        <div class="modal-box">
 
-
-        card.innerHTML = `
-
-            <img
-                class="character-card-image"
-                src="${character.image}"
-                alt="${character.name}"
+            <button
+                class="modal-close"
+                onclick="closeBooking()"
             >
+                ×
+            </button>
 
-            <div
-                class="character-card-info"
-            >
+            <p class="section-small">
+                ĐẶT THUÊ
+            </p>
 
-                <div
-                    class="character-card-category"
-                >
-                    ${character.category}
-                </div>
+            <h2 id="booking-title">
+                Đặt cosplay
+            </h2>
 
-                <h3
-                    class="character-card-name"
-                >
-                    ${character.name}
-                </h3>
+            <p id="booking-date" class="booking-date"></p>
 
-                <div
-                    class="character-card-price"
-                >
-                    ${character.price}
-                </div>
 
-            </div>
+            <form onsubmit="submitBooking(event)">
 
-        `;
+                <label>
+                    Họ và tên
 
+                    <input
+                        id="customer-name"
+                        type="text"
+                        placeholder="Nguyễn Văn A"
+                        required
+                    >
 
-        card.onclick = () => {
+                </label>
 
-            openCharacter(
-                character.id
-            );
 
-        };
+                <label>
+                    Số điện thoại
 
+                    <input
+                        id="customer-phone"
+                        type="tel"
+                        placeholder="09xxxxxxxx"
+                        required
+                    >
 
-        characterList.appendChild(
-            card
-        );
+                </label>
 
-    });
 
-}
+                <label>
+                    Ghi chú
 
+                    <textarea
+                        id="customer-note"
+                        placeholder="Ví dụ: muốn nhận đồ buổi sáng..."
+                    ></textarea>
 
-/* =========================================
-   OPEN CHARACTER
-========================================= */
+                </label>
 
-function openCharacter(id) {
 
-    const character =
-        characters.find(
-            item => item.id === id
-        );
+                <button class="submit-button" type="submit">
+                    Gửi yêu cầu thuê
+                </button>
 
+            </form>
 
-    if (!character)
-        return;
+        </div>
 
+    </div>
 
-    selectedCharacter =
-        character;
 
+    <!-- TOAST -->
 
-    homePage.classList.add(
-        "hidden"
-    );
+    <div id="toast" class="toast">
+        Đã gửi yêu cầu!
+    </div>
 
 
-    characterPage.classList.remove(
-        "hidden"
-    );
+    <script src="script.js"></script>
 
-
-    document
-        .getElementById("detail-image")
-        .src =
-        character.image;
-
-
-    document
-        .getElementById("detail-image")
-        .alt =
-        character.name;
-
-
-    document
-        .getElementById("detail-category")
-        .textContent =
-        character.category;
-
-
-    document
-        .getElementById("detail-name")
-        .textContent =
-        character.name;
-
-
-    document
-        .getElementById("detail-description")
-        .textContent =
-        character.description;
-
-
-    document
-        .getElementById("detail-price")
-        .textContent =
-        character.price;
-
-
-    const items =
-        document.getElementById(
-            "detail-items"
-        );
-
-
-    items.innerHTML = "";
-
-
-    character.items.forEach(
-        item => {
-
-            const li =
-                document.createElement(
-                    "li"
-                );
-
-
-            li.textContent =
-                item;
-
-
-            items.appendChild(
-                li
-            );
-
-        }
-    );
-
-
-    /*
-       Hiện tại vẫn mở mặc định
-       tháng 9/2026.
-    */
-
-    currentMonth = 8;
-
-    currentYear = 2026;
-
-
-    renderCalendar();
-
-
-    window.scrollTo({
-
-        top: 0,
-
-        behavior: "smooth"
-
-    });
-
-}
-
-
-/* =========================================
-   HOME
-========================================= */
-
-function goHome() {
-
-    characterPage.classList.add(
-        "hidden"
-    );
-
-
-    homePage.classList.remove(
-        "hidden"
-    );
-
-
-    window.scrollTo({
-
-        top: 0,
-
-        behavior: "smooth"
-
-    });
-
-}
-
-
-/* =========================================
-   SEARCH
-========================================= */
-
-function searchCharacters() {
-
-    const keyword =
-        document
-            .getElementById(
-                "search-input"
-            )
-            .value
-            .toLowerCase()
-            .trim();
-
-
-    const result =
-        characters.filter(
-            character =>
-
-                character.name
-                    .toLowerCase()
-                    .includes(keyword)
-
-                ||
-
-                character.category
-                    .toLowerCase()
-                    .includes(keyword)
-
-        );
-
-
-    showCharacters(result);
-
-}
-
-
-/* =========================================
-   CALENDAR
-========================================= */
-
-function renderCalendar() {
-
-    if (!selectedCharacter)
-        return;
-
-
-    const calendar =
-        document.getElementById(
-            "calendar"
-        );
-
-
-    const monthTitle =
-        document.getElementById(
-            "month-title"
-        );
-
-
-    const monthNames = [
-
-        "Tháng 1",
-
-        "Tháng 2",
-
-        "Tháng 3",
-
-        "Tháng 4",
-
-        "Tháng 5",
-
-        "Tháng 6",
-
-        "Tháng 7",
-
-        "Tháng 8",
-
-        "Tháng 9",
-
-        "Tháng 10",
-
-        "Tháng 11",
-
-        "Tháng 12"
-
-    ];
-
-
-    monthTitle.textContent =
-        `${monthNames[currentMonth]} ${currentYear}`;
-
-
-    calendar.innerHTML = "";
-
-
-    const weekdays = [
-
-        "T2",
-
-        "T3",
-
-        "T4",
-
-        "T5",
-
-        "T6",
-
-        "T7",
-
-        "CN"
-
-    ];
-
-
-    weekdays.forEach(
-        day => {
-
-            const element =
-                document.createElement(
-                    "div"
-                );
-
-
-            element.className =
-                "calendar-weekday";
-
-
-            element.textContent =
-                day;
-
-
-            calendar.appendChild(
-                element
-            );
-
-        }
-    );
-
-
-    /*
-       JavaScript:
-       Sunday = 0
-
-       Chuyển sang:
-       Monday = 0
-    */
-
-    const firstDay =
-        new Date(
-
-            currentYear,
-
-            currentMonth,
-
-            1
-
-        ).getDay();
-
-
-    const mondayIndex =
-        firstDay === 0
-            ? 6
-            : firstDay - 1;
-
-
-    for (
-
-        let i = 0;
-
-        i < mondayIndex;
-
-        i++
-
-    ) {
-
-        const empty =
-            document.createElement(
-                "div"
-            );
-
-
-        empty.className =
-            "calendar-empty";
-
-
-        calendar.appendChild(
-            empty
-        );
-
-    }
-
-
-    const daysInMonth =
-        new Date(
-
-            currentYear,
-
-            currentMonth + 1,
-
-            0
-
-        ).getDate();
-
-
-    for (
-
-        let day = 1;
-
-        day <= daysInMonth;
-
-        day++
-
-    ) {
-
-        const element =
-            document.createElement(
-                "div"
-            );
-
-
-        const rented =
-            selectedCharacter
-                .rentedDays
-                .includes(day);
-
-
-        element.className =
-            `calendar-day ${
-                rented
-                    ? "rented"
-                    : "available"
-            }`;
-
-
-        element.innerHTML = `
-
-            <div
-                class="calendar-day-number"
-            >
-                ${day}
-            </div>
-
-            <span
-                class="day-status"
-            >
-                ${
-                    rented
-                        ? "Đã thuê"
-                        : "Còn trống"
-                }
-            </span>
-
-        `;
-
-
-        if (!rented) {
-
-            element.onclick = () => {
-
-                openBooking(day);
-
-            };
-
-        }
-
-
-        calendar.appendChild(
-            element
-        );
-
-    }
-
-}
-
-
-/* =========================================
-   MONTH NAVIGATION
-========================================= */
-
-function previousMonth() {
-
-    currentMonth--;
-
-
-    if (currentMonth < 0) {
-
-        currentMonth = 11;
-
-        currentYear--;
-
-    }
-
-
-    renderCalendar();
-
-}
-
-
-function nextMonth() {
-
-    currentMonth++;
-
-
-    if (currentMonth > 11) {
-
-        currentMonth = 0;
-
-        currentYear++;
-
-    }
-
-
-    renderCalendar();
-
-}
-
-
-/* =========================================
-   BOOKING
-========================================= */
-
-function openBooking(day) {
-
-    /*
-       Nếu chưa đăng nhập,
-       yêu cầu đăng nhập trước.
-    */
-
-    if (!currentUser) {
-
-        pendingBookingDay = day;
-
-
-        openAuthModal(
-            "Bạn cần đăng nhập để gửi yêu cầu thuê."
-        );
-
-
-        return;
-    }
-
-
-    const modal =
-        document.getElementById(
-            "booking-modal"
-        );
-
-
-    document
-        .getElementById(
-            "booking-title"
-        )
-        .textContent =
-        `Thuê ${selectedCharacter.name}`;
-
-
-    document
-        .getElementById(
-            "booking-date"
-        )
-        .textContent =
-        `Ngày ${day}/${currentMonth + 1}/${currentYear}`;
-
-
-    modal.classList.remove(
-        "hidden"
-    );
-
-
-    document
-        .getElementById(
-            "customer-name"
-        )
-        .value =
-        currentProfile?.full_name ||
-        "";
-
-
-    document
-        .getElementById(
-            "customer-phone"
-        )
-        .value =
-        currentProfile?.phone ||
-        "";
-
-
-    document
-        .getElementById(
-            "customer-name"
-        )
-        .focus();
-
-}
-
-
-/* =========================================
-   CLOSE BOOKING
-========================================= */
-
-function closeBooking() {
-
-    document
-        .getElementById(
-            "booking-modal"
-        )
-        .classList.add(
-            "hidden"
-        );
-
-}
-
-
-/* =========================================
-   SUBMIT BOOKING
-========================================= */
-
-function submitBooking(event) {
-
-    event.preventDefault();
-
-
-    if (!currentUser) {
-
-        closeBooking();
-
-
-        pendingBookingDay =
-            null;
-
-
-        openAuthModal(
-            "Phiên đăng nhập đã hết. Vui lòng đăng nhập lại."
-        );
-
-
-        return;
-    }
-
-
-    const name =
-        document
-            .getElementById(
-                "customer-name"
-            )
-            .value
-            .trim();
-
-
-    const phone =
-        document
-            .getElementById(
-                "customer-phone"
-            )
-            .value
-            .trim();
-
-
-    const note =
-        document
-            .getElementById(
-                "customer-note"
-            )
-            .value
-            .trim();
-
-
-    console.log(
-
-        "BOOKING PREVIEW:",
-
-        {
-
-            user_id:
-                currentUser.id,
-
-            character:
-                selectedCharacter.name,
-
-            name,
-
-            phone,
-
-            note
-
-        }
-
-    );
-
-
-    /*
-       BƯỚC HIỆN TẠI:
-
-       Auth đã kết nối Supabase.
-
-       Đơn thuê sẽ được ghi vào
-       bảng rentals sau khi
-       characters cũng được chuyển
-       từ dữ liệu cứng sang Supabase
-       ở bước kế tiếp.
-    */
-
-
-    closeBooking();
-
-
-    showToast(
-        "Đã nhận thông tin. Bước tiếp theo sẽ lưu đơn vào Supabase."
-    );
-
-
-    event.target.reset();
-
-}
-
-
-/* =========================================
-   TOAST
-========================================= */
-
-function showToast(message) {
-
-    const toast =
-        document.getElementById(
-            "toast"
-        );
-
-
-    toast.textContent =
-        message;
-
-
-    toast.classList.add(
-        "show"
-    );
-
-
-    setTimeout(() => {
-
-        toast.classList.remove(
-            "show"
-        );
-
-    }, 2500);
-
-}
-
-
-/* =========================================
-   SEARCH BUTTON
-========================================= */
-
-function focusSearch() {
-
-    goHome();
-
-
-    setTimeout(() => {
-
-        document
-            .getElementById(
-                "search-input"
-            )
-            .focus();
-
-    }, 100);
-
-}
-
-
-/* =========================================
-   CLOSE AUTH WHEN CLICK OUTSIDE
-========================================= */
-
-document
-    .getElementById("auth-modal")
-    ?.addEventListener(
-        "click",
-        (event) => {
-
-            if (
-                event.target.id ===
-                "auth-modal"
-            ) {
-
-                closeAuthModal();
-
-            }
-
-        }
-    );
-
-
-/* =========================================
-   INITIALIZE
-========================================= */
-
-showCharacters();
-
-initAuth();
+</body>
+</html>
