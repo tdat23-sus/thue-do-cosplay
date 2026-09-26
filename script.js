@@ -1,12 +1,44 @@
-/* =========================================
-   SUPABASE + AUTH
-========================================= */
+/* =========================================================
+   CHIYOO SHOP
+   SCRIPT.JS - FULL VERSION
+   =========================================================
+
+   Chức năng:
+   - Supabase Auth
+   - Đăng ký / đăng nhập / đăng xuất
+   - Profile
+   - Kiểm tra Admin
+   - Load sản phẩm từ bảng characters
+   - Tìm kiếm sản phẩm
+   - Trang chi tiết nhân vật
+   - Lịch thuê
+   - Modal đặt thuê
+   - Toast notification
+
+   QUAN TRỌNG:
+   Shop không còn dùng danh sách character hardcode.
+   Dữ liệu sản phẩm lấy trực tiếp từ:
+
+       Supabase -> characters
+
+   Admin:
+       thêm / xóa / ẩn / hiện
+
+   Shop:
+       chỉ hiển thị sản phẩm có is_active = true
+   ========================================================= */
+
+
+/* =========================================================
+   SUPABASE
+========================================================= */
 
 const SUPABASE_URL =
     "https://rydkgmtlmhjftbwukzdn.supabase.co";
 
 const SUPABASE_PUBLISHABLE_KEY =
     "sb_publishable_wIOEpyFJLjH_aWSwnUIF-g_WCvEUOot";
+
 
 const supabaseClient =
     window.supabase.createClient(
@@ -15,11 +47,12 @@ const supabaseClient =
     );
 
 
-/* =========================================
-   GLOBAL STATE
-========================================= */
+/* =========================================================
+   GLOBAL AUTH STATE
+========================================================= */
 
 let currentUser = null;
+
 let currentProfile = null;
 
 let authMode = "login";
@@ -27,58 +60,274 @@ let authMode = "login";
 let pendingBookingDay = null;
 
 
-/* =========================================
-   AUTH MODAL
-========================================= */
+/* =========================================================
+   CHARACTER STATE
+========================================================= */
 
-function openAuthModal(message = "") {
+/*
+   Đây là dữ liệu sản phẩm của Shop.
 
-    const modal =
-        document.getElementById("auth-modal");
+   Không còn hardcode nhân vật ở đây.
 
-    if (!modal) return;
+   Dữ liệu sẽ được load từ:
 
-    const messageElement =
-        document.getElementById("auth-message");
+       Supabase -> characters
+*/
 
-    if (messageElement) {
-        messageElement.textContent = message;
+let characters = [];
+
+
+/*
+   Nhân vật hiện tại đang được xem.
+*/
+
+let selectedCharacter = null;
+
+
+/*
+   Lịch mặc định.
+
+   JavaScript:
+   tháng 0 = tháng 1
+   tháng 8 = tháng 9
+*/
+
+let currentMonth = 8;
+
+let currentYear = 2026;
+
+
+/* =========================================================
+   DOM ELEMENTS
+========================================================= */
+
+const characterList =
+    document.getElementById(
+        "character-list"
+    );
+
+
+const characterCount =
+    document.getElementById(
+        "character-count"
+    );
+
+
+const homePage =
+    document.getElementById(
+        "home-page"
+    );
+
+
+const characterPage =
+    document.getElementById(
+        "character-page"
+    );
+
+
+/* =========================================================
+   UTILITY
+========================================================= */
+
+/*
+   Escape HTML để dữ liệu từ Supabase
+   không phá giao diện HTML.
+*/
+
+function escapeHTML(value) {
+
+    if (value === null || value === undefined) {
+        return "";
     }
 
-    modal.classList.remove("hidden");
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+
+/*
+   Chuẩn hóa danh sách phụ kiện.
+*/
+
+function normalizeItems(value) {
+
+    if (Array.isArray(value)) {
+
+        return value
+            .map(item => String(item).trim())
+            .filter(Boolean);
+
+    }
+
+
+    if (typeof value === "string") {
+
+        const text = value.trim();
+
+
+        if (!text) {
+            return [];
+        }
+
+
+        /*
+           Trường hợp Supabase trả về JSON string:
+
+           ["Tóc giả","Trang phục"]
+        */
+
+        try {
+
+            const parsed =
+                JSON.parse(text);
+
+            if (Array.isArray(parsed)) {
+
+                return parsed
+                    .map(item => String(item).trim())
+                    .filter(Boolean);
+
+            }
+
+        } catch (error) {
+
+            /*
+               Không phải JSON.
+               Xử lý như text bình thường.
+            */
+
+        }
+
+
+        /*
+           Cho phép nhập:
+
+           Tóc giả
+           Trang phục
+           Phụ kiện
+
+           hoặc:
+
+           Tóc giả, Trang phục, Phụ kiện
+        */
+
+        return text
+            .split(/\r?\n|,/)
+            .map(item => item.trim())
+            .filter(Boolean);
+    }
+
+
+    return [];
+}
+
+
+/*
+   Chuẩn hóa giá.
+
+   DB:
+       price_per_day = number
+
+   Shop:
+       250.000đ / ngày
+*/
+
+function formatPrice(price) {
+
+    const number =
+        Number(price);
+
+
+    if (!Number.isFinite(number)) {
+
+        return "Liên hệ";
+    }
+
+
+    return (
+        new Intl.NumberFormat(
+            "vi-VN"
+        ).format(number)
+        + "đ / ngày"
+    );
+}
+
+
+/* =========================================================
+   AUTH MODAL
+========================================================= */
+
+function openAuthModal(
+    message = ""
+) {
+
+    const modal =
+        document.getElementById(
+            "auth-modal"
+        );
+
+
+    if (!modal) {
+        return;
+    }
+
+
+    const messageElement =
+        document.getElementById(
+            "auth-message"
+        );
+
+
+    if (messageElement) {
+
+        messageElement.textContent =
+            message;
+    }
+
+
+    modal.classList.remove(
+        "hidden"
+    );
+
 
     setAuthMode(authMode);
 
+
     setTimeout(() => {
 
-        const emailInput =
-            document.getElementById("auth-email");
-
-        if (emailInput) {
-            emailInput.focus();
-        }
+        document
+            .getElementById(
+                "auth-email"
+            )
+            ?.focus();
 
     }, 50);
 }
 
 
+/* =========================================================
+   CLOSE AUTH MODAL
+========================================================= */
+
 function closeAuthModal() {
 
-    const modal =
-        document.getElementById("auth-modal");
-
-    if (!modal) return;
-
-    modal.classList.add("hidden");
-
-    const message =
-        document.getElementById("auth-message");
-
-    if (message) {
-        message.textContent = "";
-    }
+    document
+        .getElementById(
+            "auth-modal"
+        )
+        ?.classList.add(
+            "hidden"
+        );
 }
 
+
+/* =========================================================
+   TOGGLE LOGIN / REGISTER
+========================================================= */
 
 function toggleAuthMode() {
 
@@ -90,28 +339,47 @@ function toggleAuthMode() {
 }
 
 
+/* =========================================================
+   SET AUTH MODE
+========================================================= */
+
 function setAuthMode(mode) {
 
     authMode = mode;
+
 
     const register =
         mode === "register";
 
 
     const title =
-        document.getElementById("auth-title");
+        document.getElementById(
+            "auth-title"
+        );
+
 
     const submit =
-        document.getElementById("auth-submit");
+        document.getElementById(
+            "auth-submit"
+        );
+
 
     const nameLabel =
-        document.getElementById("auth-name-label");
+        document.getElementById(
+            "auth-name-label"
+        );
+
 
     const switchText =
-        document.getElementById("auth-switch-text");
+        document.getElementById(
+            "auth-switch-text"
+        );
+
 
     const switchButton =
-        document.getElementById("auth-switch");
+        document.getElementById(
+            "auth-switch"
+        );
 
 
     if (title) {
@@ -160,66 +428,55 @@ function setAuthMode(mode) {
 }
 
 
-/* =========================================
+/* =========================================================
    AUTH SUBMIT
-========================================= */
+========================================================= */
 
 async function handleAuthSubmit(event) {
 
     event.preventDefault();
 
 
-    const emailInput =
-        document.getElementById("auth-email");
-
-    const passwordInput =
-        document.getElementById("auth-password");
-
-    const nameInput =
-        document.getElementById("auth-name");
-
-    const submitButton =
-        document.getElementById("auth-submit");
-
-
     const email =
-        emailInput?.value.trim() || "";
+        document
+            .getElementById(
+                "auth-email"
+            )
+            ?.value
+            .trim();
+
 
     const password =
-        passwordInput?.value || "";
+        document
+            .getElementById(
+                "auth-password"
+            )
+            ?.value;
+
 
     const name =
-        nameInput?.value.trim() || "";
+        document
+            .getElementById(
+                "auth-name"
+            )
+            ?.value
+            .trim();
+
+
+    const submitButton =
+        document.getElementById(
+            "auth-submit"
+        );
 
 
     if (!email || !password) {
 
-        showAuthError(
-            "Vui lòng nhập email và mật khẩu."
-        );
-
-        return;
-    }
-
-
-    if (
-        authMode === "register" &&
-        !name
-    ) {
-
-        showAuthError(
-            "Vui lòng nhập họ và tên."
-        );
-
-        return;
-    }
-
-
-    if (password.length < 6) {
-
-        showAuthError(
-            "Mật khẩu phải có ít nhất 6 ký tự."
-        );
+        document
+            .getElementById(
+                "auth-message"
+            )
+            .textContent =
+            "Vui lòng nhập email và mật khẩu.";
 
         return;
     }
@@ -234,14 +491,11 @@ async function handleAuthSubmit(event) {
     }
 
 
-    clearAuthError();
-
-
     try {
 
-        /* =========================
+        /* =================================================
            REGISTER
-        ========================= */
+        ================================================= */
 
         if (authMode === "register") {
 
@@ -249,68 +503,64 @@ async function handleAuthSubmit(event) {
                 data,
                 error
             } =
-                await supabaseClient.auth.signUp({
+                await supabaseClient
+                    .auth
+                    .signUp({
 
-                    email,
+                        email,
 
-                    password,
+                        password,
 
-                    options: {
+                        options: {
 
-                        data: {
-                            full_name: name
+                            data: {
+
+                                full_name:
+                                    name || ""
+
+                            }
+
                         }
 
-                    }
-
-                });
+                    });
 
 
             if (error) {
+
                 throw error;
             }
 
 
-            /*
-             * Supabase có thể yêu cầu
-             * xác nhận email trước khi đăng nhập.
-             */
-
-            if (data?.session) {
-
-                await loadCurrentProfile(
-                    data.user
-                );
+            if (data.session) {
 
                 showToast(
                     "Tạo tài khoản thành công!"
                 );
 
-                closeAuthModal();
-
             } else {
 
                 showToast(
-                    "Đăng ký thành công. Hãy kiểm tra email để xác nhận tài khoản."
+                    "Đăng ký thành công. Kiểm tra email nếu Supabase yêu cầu xác nhận."
                 );
-
-                closeAuthModal();
             }
+
+
+            closeAuthModal();
 
         }
 
 
-        /* =========================
+        /* =================================================
            LOGIN
-        ========================= */
+        ================================================= */
 
         else {
 
             const {
-                data,
                 error
             } =
-                await supabaseClient.auth
+                await supabaseClient
+                    .auth
                     .signInWithPassword({
 
                         email,
@@ -321,13 +571,9 @@ async function handleAuthSubmit(event) {
 
 
             if (error) {
+
                 throw error;
             }
-
-
-            await loadCurrentProfile(
-                data.user
-            );
 
 
             closeAuthModal();
@@ -339,10 +585,10 @@ async function handleAuthSubmit(event) {
 
 
             /*
-             * Nếu người dùng đã chọn
-             * ngày thuê trước khi login,
-             * mở lại form thuê.
-             */
+               Nếu khách click ngày thuê
+               trước khi đăng nhập,
+               mở lại booking sau khi login.
+            */
 
             if (
                 pendingBookingDay !== null
@@ -360,10 +606,8 @@ async function handleAuthSubmit(event) {
 
                     openBooking(day);
 
-                }, 200);
-
+                }, 150);
             }
-
         }
 
 
@@ -375,12 +619,19 @@ async function handleAuthSubmit(event) {
         );
 
 
-        showAuthError(
-            translateAuthError(
-                error?.message
-            )
-        );
+        const messageElement =
+            document.getElementById(
+                "auth-message"
+            );
 
+
+        if (messageElement) {
+
+            messageElement.textContent =
+                translateAuthError(
+                    error.message
+                );
+        }
 
     } finally {
 
@@ -388,6 +639,7 @@ async function handleAuthSubmit(event) {
 
             submitButton.disabled =
                 false;
+
 
             submitButton.textContent =
                 authMode === "register"
@@ -398,53 +650,23 @@ async function handleAuthSubmit(event) {
 }
 
 
-/* =========================================
-   AUTH ERROR
-========================================= */
+/* =========================================================
+   AUTH ERROR TRANSLATION
+========================================================= */
 
-function showAuthError(message) {
-
-    const element =
-        document.getElementById(
-            "auth-message"
-        );
-
-    if (element) {
-
-        element.textContent =
-            message || "Có lỗi xảy ra.";
-
-    }
-}
-
-
-function clearAuthError() {
-
-    const element =
-        document.getElementById(
-            "auth-message"
-        );
-
-    if (element) {
-        element.textContent = "";
-    }
-}
-
-
-function translateAuthError(message) {
+function translateAuthError(
+    message
+) {
 
     if (!message) {
+
         return "Có lỗi xảy ra.";
     }
 
 
-    const text =
-        message.toLowerCase();
-
-
     if (
-        text.includes(
-            "invalid login credentials"
+        message.includes(
+            "Invalid login credentials"
         )
     ) {
 
@@ -453,8 +675,8 @@ function translateAuthError(message) {
 
 
     if (
-        text.includes(
-            "user already registered"
+        message.includes(
+            "User already registered"
         )
     ) {
 
@@ -463,8 +685,8 @@ function translateAuthError(message) {
 
 
     if (
-        text.includes(
-            "password should be at least"
+        message.includes(
+            "Password should be at least"
         )
     ) {
 
@@ -473,8 +695,8 @@ function translateAuthError(message) {
 
 
     if (
-        text.includes(
-            "email not confirmed"
+        message.includes(
+            "Email not confirmed"
         )
     ) {
 
@@ -482,55 +704,25 @@ function translateAuthError(message) {
     }
 
 
-    if (
-        text.includes(
-            "email rate limit"
-        )
-    ) {
-
-        return "Bạn thao tác quá nhanh. Vui lòng thử lại sau.";
-    }
-
-
     return message;
 }
 
 
-/* =========================================
+/* =========================================================
    LOGOUT
-========================================= */
+========================================================= */
 
 async function signOutUser() {
 
-    try {
-
-        const {
-            error
-        } =
-            await supabaseClient.auth.signOut();
-
-
-        if (error) {
-            throw error;
-        }
+    const {
+        error
+    } =
+        await supabaseClient
+            .auth
+            .signOut();
 
 
-        currentUser = null;
-
-        currentProfile = null;
-
-        pendingBookingDay = null;
-
-
-        updateAuthUI();
-
-
-        showToast(
-            "Đã đăng xuất."
-        );
-
-
-    } catch (error) {
+    if (error) {
 
         console.error(
             "LOGOUT ERROR:",
@@ -541,18 +733,29 @@ async function signOutUser() {
         showToast(
             "Không thể đăng xuất."
         );
+
+
+        return;
     }
+
+
+    showToast(
+        "Đã đăng xuất."
+    );
 }
 
 
-/* =========================================
+/* =========================================================
    LOAD PROFILE
-========================================= */
+========================================================= */
 
-async function loadCurrentProfile(user) {
+async function loadCurrentProfile(
+    user
+) {
 
     currentUser =
         user || null;
+
 
     currentProfile =
         null;
@@ -566,44 +769,33 @@ async function loadCurrentProfile(user) {
     }
 
 
-    try {
-
-        const {
-            data,
-            error
-        } =
-            await supabaseClient
-                .from("profiles")
-                .select(
-                    "id, full_name, phone, avatar_url, role"
-                )
-                .eq(
-                    "id",
-                    user.id
-                )
-                .maybeSingle();
+    const {
+        data,
+        error
+    } =
+        await supabaseClient
+            .from("profiles")
+            .select(
+                "id, full_name, phone, avatar_url, role"
+            )
+            .eq(
+                "id",
+                user.id
+            )
+            .maybeSingle();
 
 
-        if (error) {
-
-            console.error(
-                "PROFILE ERROR:",
-                error
-            );
-
-        } else {
-
-            currentProfile =
-                data || null;
-        }
-
-
-    } catch (error) {
+    if (error) {
 
         console.error(
-            "PROFILE LOAD ERROR:",
+            "PROFILE ERROR:",
             error
         );
+
+    } else {
+
+        currentProfile =
+            data;
     }
 
 
@@ -611,9 +803,9 @@ async function loadCurrentProfile(user) {
 }
 
 
-/* =========================================
+/* =========================================================
    UPDATE AUTH UI
-========================================= */
+========================================================= */
 
 function updateAuthUI() {
 
@@ -629,40 +821,42 @@ function updateAuthUI() {
         );
 
 
-    const nameElement =
+    const name =
         document.getElementById(
             "auth-user-name"
         );
 
 
-    const roleElement =
+    const role =
         document.getElementById(
             "auth-user-role"
         );
 
 
-    const adminButton =
-        document.getElementById(
-            "admin-button"
-        );
-
-
     if (!button || !userBox) {
+
         return;
     }
 
 
-    /* =========================
+    /* =====================================================
        NOT LOGGED IN
-    ========================= */
+    ===================================================== */
 
     if (!currentUser) {
 
         button.style.display =
             "inline-block";
 
+
         userBox.style.display =
             "none";
+
+
+        const adminButton =
+            document.getElementById(
+                "admin-button"
+            );
 
 
         if (adminButton) {
@@ -676,20 +870,21 @@ function updateAuthUI() {
     }
 
 
-    /* =========================
+    /* =====================================================
        LOGGED IN
-    ========================= */
+    ===================================================== */
 
     button.style.display =
         "none";
+
 
     userBox.style.display =
         "flex";
 
 
-    if (nameElement) {
+    if (name) {
 
-        nameElement.textContent =
+        name.textContent =
             currentProfile?.full_name ||
             currentUser.email ||
             "Tài khoản";
@@ -700,16 +895,23 @@ function updateAuthUI() {
         currentProfile?.role === "admin";
 
 
-    if (roleElement) {
+    if (role) {
 
-        roleElement.textContent =
+        role.textContent =
             isAdmin
                 ? "ADMIN"
                 : "KHÁCH";
 
-        roleElement.style.display =
+
+        role.style.display =
             "inline-block";
     }
+
+
+    const adminButton =
+        document.getElementById(
+            "admin-button"
+        );
 
 
     if (adminButton) {
@@ -722,9 +924,9 @@ function updateAuthUI() {
 }
 
 
-/* =========================================
+/* =========================================================
    AUTH STATE LISTENER
-========================================= */
+========================================================= */
 
 supabaseClient
     .auth
@@ -732,9 +934,9 @@ supabaseClient
         (_event, session) => {
 
             /*
-             * Không gọi quá nhiều thao tác
-             * Supabase ngay bên trong callback.
-             */
+               Không gọi trực tiếp quá sâu
+               bên trong auth callback.
+            */
 
             setTimeout(() => {
 
@@ -743,38 +945,26 @@ supabaseClient
                 );
 
             }, 0);
-
         }
     );
 
 
-/* =========================================
+/* =========================================================
    INIT AUTH
-========================================= */
+========================================================= */
 
 async function initAuth() {
 
-    try {
-
-        const {
-            data,
-            error
-        } =
-            await supabaseClient.auth
-                .getSession();
-
-
-        if (error) {
-            throw error;
-        }
+    const {
+        data,
+        error
+    } =
+        await supabaseClient
+            .auth
+            .getSession();
 
 
-        await loadCurrentProfile(
-            data?.session?.user || null
-        );
-
-
-    } catch (error) {
+    if (error) {
 
         console.error(
             "SESSION ERROR:",
@@ -782,270 +972,253 @@ async function initAuth() {
         );
 
 
-        currentUser = null;
+        return;
+    }
 
-        currentProfile = null;
 
-        updateAuthUI();
+    await loadCurrentProfile(
+        data.session?.user || null
+    );
+}
+
+
+/* =========================================================
+   LOAD CHARACTERS FROM SUPABASE
+========================================================= */
+
+/*
+   Đây là phần QUAN TRỌNG NHẤT của bản mới.
+
+   Shop lấy sản phẩm từ:
+
+       characters
+
+   Chỉ lấy:
+
+       is_active = true
+
+   Vì vậy:
+
+   Admin thêm
+       ↓
+   characters
+       ↓
+   Shop hiển thị
+
+   Admin xóa
+       ↓
+   characters bị xóa
+       ↓
+   Shop không còn sản phẩm
+
+   Admin ẩn
+       ↓
+   is_active = false
+       ↓
+   Shop không hiển thị
+*/
+
+async function loadCharactersFromSupabase() {
+
+    if (!characterList) {
+
+        console.error(
+            "Không tìm thấy #character-list"
+        );
+
+        return;
+    }
+
+
+    characterList.innerHTML = `
+
+        <div
+            style="
+                grid-column:1/-1;
+                text-align:center;
+                padding:40px 20px;
+                color:#888;
+            "
+        >
+            Đang tải sản phẩm...
+        </div>
+
+    `;
+
+
+    try {
+
+        const {
+            data,
+            error
+        } =
+            await supabaseClient
+                .from("characters")
+                .select(`
+                    id,
+                    name,
+                    category,
+                    description,
+                    price_per_day,
+                    image_url,
+                    included_items,
+                    is_active,
+                    created_at
+                `)
+                .eq(
+                    "is_active",
+                    true
+                )
+                .order(
+                    "created_at",
+                    {
+                        ascending: false
+                    }
+                );
+
+
+        if (error) {
+
+            throw error;
+        }
+
+
+        /*
+           Chuyển dữ liệu Supabase
+           sang format mà giao diện
+           hiện tại đang sử dụng.
+        */
+
+        characters =
+            (data || []).map(
+                character => {
+
+                    return {
+
+                        id:
+                            character.id,
+
+                        name:
+                            character.name ||
+                            "Chưa đặt tên",
+
+                        category:
+                            character.category ||
+                            "Khác",
+
+                        price:
+                            formatPrice(
+                                character.price_per_day
+                            ),
+
+                        priceValue:
+                            Number(
+                                character.price_per_day ||
+                                0
+                            ),
+
+                        description:
+                            character.description ||
+                            "Chưa có mô tả.",
+
+                        image:
+                            character.image_url ||
+                            "https://placehold.co/700x900/e8dce5/332b33?text=CHIYOO",
+
+                        items:
+                            normalizeItems(
+                                character.included_items
+                            ),
+
+                        /*
+                           rentedDays hiện tại
+                           chưa lấy từ DB.
+
+                           Để [] để tránh crash
+                           calendar.
+                        */
+
+                        rentedDays: []
+
+                    };
+
+                }
+            );
+
+
+        console.log(
+            "CHARACTERS LOADED:",
+            characters
+        );
+
+
+        showCharacters(
+            characters
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "LOAD CHARACTERS ERROR:",
+            error
+        );
+
+
+        characters = [];
+
+
+        characterCount.textContent =
+            "0 nhân vật";
+
+
+        characterList.innerHTML = `
+
+            <div
+                style="
+                    grid-column:1/-1;
+                    text-align:center;
+                    padding:40px 20px;
+                "
+            >
+
+                <p
+                    style="
+                        color:#c44;
+                        margin-bottom:10px;
+                    "
+                >
+                    Không thể tải danh sách sản phẩm.
+                </p>
+
+                <small
+                    style="
+                        color:#888;
+                    "
+                >
+                    ${escapeHTML(
+                        error.message ||
+                        "Lỗi không xác định."
+                    )}
+                </small>
+
+            </div>
+
+        `;
     }
 }
 
 
-/* =========================================
-   CHARACTER DATA
-========================================= */
-
-const characters = [
-
-    {
-        id: "hutao",
-
-        name: "Hu Tao",
-
-        category: "Genshin Impact",
-
-        price: "250.000đ / ngày",
-
-        description:
-            "Bộ cosplay Hu Tao với trang phục và phụ kiện cơ bản.",
-
-        image:
-            "https://placehold.co/700x900/e8dce5/332b33?text=HU+TAO",
-
-        items: [
-            "Trang phục Hu Tao",
-            "Tóc giả",
-            "Phụ kiện",
-            "Các chi tiết đi kèm"
-        ],
-
-        rentedDays: [
-            5,
-            12,
-            18,
-            19,
-            25
-        ]
-    },
-
-
-    {
-        id: "furina",
-
-        name: "Furina",
-
-        category: "Genshin Impact",
-
-        price: "300.000đ / ngày",
-
-        description:
-            "Bộ cosplay Furina phong cách Fontaine.",
-
-        image:
-            "https://placehold.co/700x900/dce7f0/28313b?text=FURINA",
-
-        items: [
-            "Trang phục Furina",
-            "Tóc giả",
-            "Phụ kiện",
-            "Trang sức"
-        ],
-
-        rentedDays: [
-            3,
-            4,
-            15,
-            22
-        ]
-    },
-
-
-    {
-        id: "miku",
-
-        name: "Hatsune Miku",
-
-        category: "Vocaloid",
-
-        price: "200.000đ / ngày",
-
-        description:
-            "Bộ cosplay Hatsune Miku với tóc giả và phụ kiện.",
-
-        image:
-            "https://placehold.co/700x900/dcefeb/263634?text=MIKU",
-
-        items: [
-            "Trang phục",
-            "Tóc giả xanh",
-            "Phụ kiện",
-            "Cà vạt"
-        ],
-
-        rentedDays: [
-            7,
-            8,
-            20
-        ]
-    },
-
-
-    {
-        id: "kafka",
-
-        name: "Kafka",
-
-        category: "Honkai: Star Rail",
-
-        price: "300.000đ / ngày",
-
-        description:
-            "Bộ cosplay Kafka phong cách Honkai: Star Rail.",
-
-        image:
-            "https://placehold.co/700x900/e9dce1/352c30?text=KAFKA",
-
-        items: [
-            "Trang phục Kafka",
-            "Tóc giả",
-            "Kính",
-            "Phụ kiện"
-        ],
-
-        rentedDays: [
-            2,
-            10,
-            11,
-            27
-        ]
-    },
-
-
-    {
-        id: "raiden",
-
-        name: "Raiden Shogun",
-
-        category: "Genshin Impact",
-
-        price: "280.000đ / ngày",
-
-        description:
-            "Bộ cosplay Raiden Shogun với trang phục và phụ kiện.",
-
-        image:
-            "https://placehold.co/700x900/e2dff0/302d3d?text=RAIDEN",
-
-        items: [
-            "Trang phục",
-            "Tóc giả",
-            "Phụ kiện",
-            "Đạo cụ"
-        ],
-
-        rentedDays: [
-            6,
-            14,
-            21,
-            28
-        ]
-    },
-
-
-    {
-        id: "navia",
-
-        name: "Navia",
-
-        category: "Genshin Impact",
-
-        price: "280.000đ / ngày",
-
-        description:
-            "Bộ cosplay Navia phong cách Fontaine.",
-
-        image:
-            "https://placehold.co/700x900/f0e2cf/3b3328?text=NAVIA",
-
-        items: [
-            "Trang phục Navia",
-            "Tóc giả",
-            "Mũ",
-            "Phụ kiện"
-        ],
-
-        rentedDays: [
-            9,
-            16,
-            23
-        ]
-    }
-
-];
-
-
-/* =========================================
-   STATE
-========================================= */
-
-let selectedCharacter = null;
-
-
-/*
- * Tự động mở tháng hiện tại.
- *
- * JavaScript:
- * January = 0
- * September = 8
- */
-
-const now =
-    new Date();
-
-let currentMonth =
-    now.getMonth();
-
-let currentYear =
-    now.getFullYear();
-
-
-/* =========================================
-   ELEMENTS
-========================================= */
-
-const characterList =
-    document.getElementById(
-        "character-list"
-    );
-
-
-const characterCount =
-    document.getElementById(
-        "character-count"
-    );
-
-
-const homePage =
-    document.getElementById(
-        "home-page"
-    );
-
-
-const characterPage =
-    document.getElementById(
-        "character-page"
-    );
-
-
-/* =========================================
+/* =========================================================
    SHOW CHARACTERS
-========================================= */
+========================================================= */
 
 function showCharacters(
     list = characters
 ) {
 
     if (!characterList) {
+
         return;
     }
 
@@ -1061,6 +1234,10 @@ function showCharacters(
     }
 
 
+    /* =====================================================
+       EMPTY
+    ===================================================== */
+
     if (list.length === 0) {
 
         characterList.innerHTML = `
@@ -1069,6 +1246,8 @@ function showCharacters(
                 style="
                     grid-column:1/-1;
                     color:#888;
+                    text-align:center;
+                    padding:40px 20px;
                 "
             >
                 Không tìm thấy nhân vật.
@@ -1076,9 +1255,14 @@ function showCharacters(
 
         `;
 
+
         return;
     }
 
+
+    /* =====================================================
+       CREATE CARDS
+    ===================================================== */
 
     list.forEach(
         character => {
@@ -1093,40 +1277,111 @@ function showCharacters(
                 "character-card";
 
 
-            card.innerHTML = `
+            const image =
+                document.createElement(
+                    "img"
+                );
 
-                <img
-                    class="character-card-image"
-                    src="${character.image}"
-                    alt="${character.name}"
-                    loading="lazy"
-                >
 
-                <div
-                    class="character-card-info"
-                >
+            image.className =
+                "character-card-image";
 
-                    <div
-                        class="character-card-category"
-                    >
-                        ${character.category}
-                    </div>
 
-                    <h3
-                        class="character-card-name"
-                    >
-                        ${character.name}
-                    </h3>
+            image.src =
+                character.image;
 
-                    <div
-                        class="character-card-price"
-                    >
-                        ${character.price}
-                    </div>
 
-                </div>
+            image.alt =
+                character.name;
 
-            `;
+
+            image.loading =
+                "lazy";
+
+
+            image.onerror =
+                () => {
+
+                    image.src =
+                        "https://placehold.co/700x900/e8dce5/332b33?text=CHIYOO";
+                };
+
+
+            const info =
+                document.createElement(
+                    "div"
+                );
+
+
+            info.className =
+                "character-card-info";
+
+
+            const category =
+                document.createElement(
+                    "div"
+                );
+
+
+            category.className =
+                "character-card-category";
+
+
+            category.textContent =
+                character.category;
+
+
+            const name =
+                document.createElement(
+                    "h3"
+                );
+
+
+            name.className =
+                "character-card-name";
+
+
+            name.textContent =
+                character.name;
+
+
+            const price =
+                document.createElement(
+                    "div"
+                );
+
+
+            price.className =
+                "character-card-price";
+
+
+            price.textContent =
+                character.price;
+
+
+            info.appendChild(
+                category
+            );
+
+
+            info.appendChild(
+                name
+            );
+
+
+            info.appendChild(
+                price
+            );
+
+
+            card.appendChild(
+                image
+            );
+
+
+            card.appendChild(
+                info
+            );
 
 
             card.addEventListener(
@@ -1144,25 +1399,33 @@ function showCharacters(
             characterList.appendChild(
                 card
             );
-
         }
     );
 }
 
 
-/* =========================================
+/* =========================================================
    OPEN CHARACTER
-========================================= */
+========================================================= */
 
 function openCharacter(id) {
 
     const character =
         characters.find(
-            item => item.id === id
+            item =>
+                String(item.id) ===
+                String(id)
         );
 
 
     if (!character) {
+
+        console.warn(
+            "Không tìm thấy character:",
+            id
+        );
+
+
         return;
     }
 
@@ -1171,89 +1434,120 @@ function openCharacter(id) {
         character;
 
 
-    if (homePage) {
+    /* =====================================================
+       SWITCH PAGE
+    ===================================================== */
 
-        homePage.classList.add(
-            "hidden"
-        );
-    }
-
-
-    if (characterPage) {
-
-        characterPage.classList.remove(
-            "hidden"
-        );
-    }
+    homePage?.classList.add(
+        "hidden"
+    );
 
 
-    const image =
+    characterPage?.classList.remove(
+        "hidden"
+    );
+
+
+    /* =====================================================
+       IMAGE
+    ===================================================== */
+
+    const detailImage =
         document.getElementById(
             "detail-image"
         );
 
 
-    if (image) {
+    if (detailImage) {
 
-        image.src =
+        detailImage.src =
             character.image;
 
-        image.alt =
+
+        detailImage.alt =
             character.name;
+
+
+        detailImage.onerror =
+            () => {
+
+                detailImage.src =
+                    "https://placehold.co/700x900/e8dce5/332b33?text=CHIYOO";
+            };
     }
 
 
-    const category =
+    /* =====================================================
+       CATEGORY
+    ===================================================== */
+
+    const detailCategory =
         document.getElementById(
             "detail-category"
         );
 
 
-    if (category) {
+    if (detailCategory) {
 
-        category.textContent =
+        detailCategory.textContent =
             character.category;
     }
 
 
-    const name =
+    /* =====================================================
+       NAME
+    ===================================================== */
+
+    const detailName =
         document.getElementById(
             "detail-name"
         );
 
 
-    if (name) {
+    if (detailName) {
 
-        name.textContent =
+        detailName.textContent =
             character.name;
     }
 
 
-    const description =
+    /* =====================================================
+       DESCRIPTION
+    ===================================================== */
+
+    const detailDescription =
         document.getElementById(
             "detail-description"
         );
 
 
-    if (description) {
+    if (detailDescription) {
 
-        description.textContent =
+        detailDescription.textContent =
             character.description;
     }
 
 
-    const price =
+    /* =====================================================
+       PRICE
+    ===================================================== */
+
+    const detailPrice =
         document.getElementById(
             "detail-price"
         );
 
 
-    if (price) {
+    if (detailPrice) {
 
-        price.textContent =
+        detailPrice.textContent =
             character.price;
     }
 
+
+    /* =====================================================
+       INCLUDED ITEMS
+    ===================================================== */
 
     const items =
         document.getElementById(
@@ -1263,34 +1557,72 @@ function openCharacter(id) {
 
     if (items) {
 
-        items.innerHTML = "";
+        items.innerHTML =
+            "";
 
 
-        character.items.forEach(
-            item => {
+        if (
+            character.items &&
+            character.items.length
+        ) {
 
-                const li =
-                    document.createElement(
-                        "li"
+            character.items.forEach(
+                item => {
+
+                    const li =
+                        document.createElement(
+                            "li"
+                        );
+
+
+                    li.textContent =
+                        item;
+
+
+                    items.appendChild(
+                        li
                     );
+                }
+            );
 
+        } else {
 
-                li.textContent =
-                    item;
-
-
-                items.appendChild(
-                    li
+            const li =
+                document.createElement(
+                    "li"
                 );
 
-            }
-        );
+
+            li.textContent =
+                "Thông tin phụ kiện chưa được cập nhật.";
+
+
+            items.appendChild(
+                li
+            );
+        }
     }
+
+
+    /* =====================================================
+       RESET CALENDAR
+    ===================================================== */
+
+    currentMonth =
+        8;
+
+
+    currentYear =
+        2026;
 
 
     renderCalendar();
 
 
+    /* =====================================================
+       SCROLL TOP
+    ===================================================== */
+
     window.scrollTo({
 
         top: 0,
@@ -1301,26 +1633,20 @@ function openCharacter(id) {
 }
 
 
-/* =========================================
+/* =========================================================
    HOME
-========================================= */
+========================================================= */
 
 function goHome() {
 
-    if (characterPage) {
-
-        characterPage.classList.add(
-            "hidden"
-        );
-    }
+    characterPage?.classList.add(
+        "hidden"
+    );
 
 
-    if (homePage) {
-
-        homePage.classList.remove(
-            "hidden"
-        );
-    }
+    homePage?.classList.remove(
+        "hidden"
+    );
 
 
     window.scrollTo({
@@ -1333,9 +1659,9 @@ function goHome() {
 }
 
 
-/* =========================================
+/* =========================================================
    SEARCH
-========================================= */
+========================================================= */
 
 function searchCharacters() {
 
@@ -1346,6 +1672,7 @@ function searchCharacters() {
 
 
     if (!input) {
+
         return;
     }
 
@@ -1356,37 +1683,79 @@ function searchCharacters() {
             .trim();
 
 
+    /*
+       Nếu không nhập gì:
+       hiển thị toàn bộ sản phẩm.
+    */
+
+    if (!keyword) {
+
+        showCharacters(
+            characters
+        );
+
+
+        return;
+    }
+
+
     const result =
         characters.filter(
             character => {
 
+                const name =
+                    String(
+                        character.name || ""
+                    ).toLowerCase();
+
+
+                const category =
+                    String(
+                        character.category || ""
+                    ).toLowerCase();
+
+
+                const description =
+                    String(
+                        character.description || ""
+                    ).toLowerCase();
+
+
                 return (
-                    character.name
-                        .toLowerCase()
-                        .includes(keyword)
+                    name.includes(
+                        keyword
+                    )
 
                     ||
 
-                    character.category
-                        .toLowerCase()
-                        .includes(keyword)
-                );
+                    category.includes(
+                        keyword
+                    )
 
+                    ||
+
+                    description.includes(
+                        keyword
+                    )
+                );
             }
         );
 
 
-    showCharacters(result);
+    showCharacters(
+        result
+    );
 }
 
 
-/* =========================================
+/* =========================================================
    CALENDAR
-========================================= */
+========================================================= */
 
 function renderCalendar() {
 
     if (!selectedCharacter) {
+
         return;
     }
 
@@ -1404,6 +1773,7 @@ function renderCalendar() {
 
 
     if (!calendar || !monthTitle) {
+
         return;
     }
 
@@ -1411,16 +1781,27 @@ function renderCalendar() {
     const monthNames = [
 
         "Tháng 1",
+
         "Tháng 2",
+
         "Tháng 3",
+
         "Tháng 4",
+
         "Tháng 5",
+
         "Tháng 6",
+
         "Tháng 7",
+
         "Tháng 8",
+
         "Tháng 9",
+
         "Tháng 10",
+
         "Tháng 11",
+
         "Tháng 12"
 
     ];
@@ -1434,14 +1815,24 @@ function renderCalendar() {
         "";
 
 
+    /* =====================================================
+       WEEKDAYS
+    ===================================================== */
+
     const weekdays = [
 
         "T2",
+
         "T3",
+
         "T4",
+
         "T5",
+
         "T6",
+
         "T7",
+
         "CN"
 
     ];
@@ -1467,34 +1858,45 @@ function renderCalendar() {
             calendar.appendChild(
                 element
             );
-
         }
     );
 
 
-    /*
-     * JavaScript:
-     *
-     * Sunday = 0
-     *
-     * Chuyển thành:
-     *
-     * Monday = 0
-     */
+    /* =====================================================
+       FIRST DAY
+    ===================================================== */
 
     const firstDay =
         new Date(
+
             currentYear,
+
             currentMonth,
+
             1
+
         ).getDay();
 
+
+    /*
+       JavaScript:
+
+       Sunday = 0
+
+       Chuyển:
+
+       Monday = 0
+    */
 
     const mondayIndex =
         firstDay === 0
             ? 6
             : firstDay - 1;
 
+
+    /* =====================================================
+       EMPTY DAYS
+    ===================================================== */
 
     for (
         let i = 0;
@@ -1518,13 +1920,25 @@ function renderCalendar() {
     }
 
 
+    /* =====================================================
+       DAYS IN MONTH
+    ===================================================== */
+
     const daysInMonth =
         new Date(
+
             currentYear,
+
             currentMonth + 1,
+
             0
+
         ).getDate();
 
+
+    /* =====================================================
+       RENDER DAYS
+    ===================================================== */
 
     for (
         let day = 1;
@@ -1538,9 +1952,18 @@ function renderCalendar() {
             );
 
 
+        const rentedDays =
+            Array.isArray(
+                selectedCharacter.rentedDays
+            )
+                ? selectedCharacter.rentedDays
+                : [];
+
+
         const rented =
-            selectedCharacter.rentedDays
-                .includes(day);
+            rentedDays.includes(
+                day
+            );
 
 
         element.className =
@@ -1551,31 +1974,49 @@ function renderCalendar() {
             }`;
 
 
-        element.innerHTML = `
-
-            <div
-                class="calendar-day-number"
-            >
-                ${day}
-            </div>
-
-            <span
-                class="day-status"
-            >
-                ${
-                    rented
-                        ? "Đã thuê"
-                        : "Còn trống"
-                }
-            </span>
-
-        `;
+        const number =
+            document.createElement(
+                "div"
+            );
 
 
-        /*
-         * Chỉ cho click ngày
-         * còn trống.
-         */
+        number.className =
+            "calendar-day-number";
+
+
+        number.textContent =
+            day;
+
+
+        const status =
+            document.createElement(
+                "span"
+            );
+
+
+        status.className =
+            "day-status";
+
+
+        status.textContent =
+            rented
+                ? "Đã thuê"
+                : "Còn trống";
+
+
+        element.appendChild(
+            number
+        );
+
+
+        element.appendChild(
+            status
+        );
+
+
+        /* =================================================
+           AVAILABLE
+        ================================================= */
 
         if (!rented) {
 
@@ -1583,11 +2024,12 @@ function renderCalendar() {
                 "click",
                 () => {
 
-                    openBooking(day);
+                    openBooking(
+                        day
+                    );
 
                 }
             );
-
         }
 
 
@@ -1598,9 +2040,9 @@ function renderCalendar() {
 }
 
 
-/* =========================================
-   MONTH NAVIGATION
-========================================= */
+/* =========================================================
+   PREVIOUS MONTH
+========================================================= */
 
 function previousMonth() {
 
@@ -1609,7 +2051,9 @@ function previousMonth() {
 
     if (currentMonth < 0) {
 
-        currentMonth = 11;
+        currentMonth =
+            11;
+
 
         currentYear--;
     }
@@ -1619,6 +2063,10 @@ function previousMonth() {
 }
 
 
+/* =========================================================
+   NEXT MONTH
+========================================================= */
+
 function nextMonth() {
 
     currentMonth++;
@@ -1626,7 +2074,9 @@ function nextMonth() {
 
     if (currentMonth > 11) {
 
-        currentMonth = 0;
+        currentMonth =
+            0;
+
 
         currentYear++;
     }
@@ -1636,26 +2086,26 @@ function nextMonth() {
 }
 
 
-/* =========================================
-   BOOKING
-========================================= */
+/* =========================================================
+   OPEN BOOKING
+========================================================= */
 
 function openBooking(day) {
 
     if (!selectedCharacter) {
 
         showToast(
-            "Vui lòng chọn nhân vật trước."
+            "Vui lòng chọn nhân vật."
         );
+
 
         return;
     }
 
 
-    /*
-     * Nếu chưa đăng nhập,
-     * lưu lại ngày người dùng chọn.
-     */
+    /* =====================================================
+       CHECK LOGIN
+    ===================================================== */
 
     if (!currentUser) {
 
@@ -1679,9 +2129,14 @@ function openBooking(day) {
 
 
     if (!modal) {
+
         return;
     }
 
+
+    /* =====================================================
+       TITLE
+    ===================================================== */
 
     const title =
         document.getElementById(
@@ -1696,23 +2151,26 @@ function openBooking(day) {
     }
 
 
-    const bookingDate =
+    /* =====================================================
+       DATE
+    ===================================================== */
+
+    const date =
         document.getElementById(
             "booking-date"
         );
 
 
-    if (bookingDate) {
+    if (date) {
 
-        bookingDate.textContent =
+        date.textContent =
             `Ngày ${day}/${currentMonth + 1}/${currentYear}`;
     }
 
 
-    modal.classList.remove(
-        "hidden"
-    );
-
+    /* =====================================================
+       CUSTOMER NAME
+    ===================================================== */
 
     const customerName =
         document.getElementById(
@@ -1720,67 +2178,77 @@ function openBooking(day) {
         );
 
 
+    if (customerName) {
+
+        customerName.value =
+            currentProfile?.full_name ||
+            "";
+    }
+
+
+    /* =====================================================
+       PHONE
+    ===================================================== */
+
     const customerPhone =
         document.getElementById(
             "customer-phone"
         );
 
 
-    if (customerName) {
-
-        customerName.value =
-            currentProfile?.full_name || "";
-    }
-
-
     if (customerPhone) {
 
         customerPhone.value =
-            currentProfile?.phone || "";
+            currentProfile?.phone ||
+            "";
     }
+
+
+    /* =====================================================
+       SHOW MODAL
+    ===================================================== */
+
+    modal.classList.remove(
+        "hidden"
+    );
 
 
     setTimeout(() => {
 
-        if (customerName) {
-            customerName.focus();
-        }
+        customerName?.focus();
 
-    }, 100);
+    }, 50);
 }
 
 
-/* =========================================
+/* =========================================================
    CLOSE BOOKING
-========================================= */
+========================================================= */
 
 function closeBooking() {
 
-    const modal =
-        document.getElementById(
+    document
+        .getElementById(
             "booking-modal"
+        )
+        ?.classList.add(
+            "hidden"
         );
-
-
-    if (!modal) {
-        return;
-    }
-
-
-    modal.classList.add(
-        "hidden"
-    );
 }
 
 
-/* =========================================
+/* =========================================================
    SUBMIT BOOKING
-========================================= */
+========================================================= */
 
 function submitBooking(event) {
 
     event.preventDefault();
 
+
+    /* =====================================================
+       CHECK LOGIN
+    ===================================================== */
 
     if (!currentUser) {
 
@@ -1800,15 +2268,9 @@ function submitBooking(event) {
     }
 
 
-    if (!selectedCharacter) {
-
-        showToast(
-            "Không xác định được nhân vật."
-        );
-
-        return;
-    }
-
+    /* =====================================================
+       FORM DATA
+    ===================================================== */
 
     const name =
         document
@@ -1816,7 +2278,7 @@ function submitBooking(event) {
                 "customer-name"
             )
             ?.value
-            .trim() || "";
+            .trim();
 
 
     const phone =
@@ -1825,7 +2287,7 @@ function submitBooking(event) {
                 "customer-phone"
             )
             ?.value
-            .trim() || "";
+            .trim();
 
 
     const note =
@@ -1834,14 +2296,19 @@ function submitBooking(event) {
                 "customer-note"
             )
             ?.value
-            .trim() || "";
+            .trim();
 
+
+    /* =====================================================
+       BASIC VALIDATION
+    ===================================================== */
 
     if (!name) {
 
         showToast(
-            "Vui lòng nhập họ và tên."
+            "Vui lòng nhập họ tên."
         );
+
 
         return;
     }
@@ -1853,64 +2320,57 @@ function submitBooking(event) {
             "Vui lòng nhập số điện thoại."
         );
 
+
         return;
     }
 
 
-    /*
-     * Tạo dữ liệu đơn thuê.
-     *
-     * Hiện tại chưa INSERT vào Supabase
-     * vì cần biết chính xác schema bảng rentals.
-     */
-
-    const bookingData = {
-
-        user_id:
-            currentUser.id,
-
-        character_id:
-            selectedCharacter.id,
-
-        character_name:
-            selectedCharacter.name,
-
-        rental_date:
-            `${currentYear}-${String(
-                currentMonth + 1
-            ).padStart(2, "0")}-${String(
-                pendingBookingDay || getCurrentBookingDay()
-            ).padStart(2, "0")}`,
-
-        customer_name:
-            name,
-
-        customer_phone:
-            phone,
-
-        note:
-            note
-
-    };
-
+    /* =====================================================
+       PREVIEW
+    ===================================================== */
 
     console.log(
-        "BOOKING DATA:",
-        bookingData
+        "BOOKING PREVIEW:",
+        {
+
+            user_id:
+                currentUser.id,
+
+            character_id:
+                selectedCharacter.id,
+
+            character:
+                selectedCharacter.name,
+
+            date:
+                `${currentYear}-${String(
+                    currentMonth + 1
+                ).padStart(2, "0")}-${String(
+                    pendingBookingDay || 0
+                ).padStart(2, "0")}`,
+
+            name,
+
+            phone,
+
+            note
+
+        }
     );
 
 
     /*
-     * TODO:
-     *
-     * Khi xác định chính xác cấu trúc
-     * bảng rentals trong Supabase,
-     * thay phần trên bằng:
-     *
-     * await supabaseClient
-     *     .from("rentals")
-     *     .insert([bookingData]);
-     */
+       LƯU Ý:
+
+       File cũ chưa có cấu trúc chính xác
+       của bảng rentals.
+
+       Vì vậy không tự ý INSERT vào DB
+       để tránh làm sai schema Supabase.
+
+       Khi bạn tạo bảng rentals,
+       phần này có thể nối trực tiếp.
+    */
 
 
     closeBooking();
@@ -1921,34 +2381,20 @@ function submitBooking(event) {
     );
 
 
-    const form =
-        event.target;
+    /*
+       Reset form.
+    */
 
-
-    if (form) {
-        form.reset();
-    }
-
-
-    pendingBookingDay =
-        null;
+    event.target.reset();
 }
 
 
-/*
- * Khi submit trực tiếp mà không còn
- * pendingBookingDay, lấy ngày hiện tại.
- */
-
-function getCurrentBookingDay() {
-
-    return new Date().getDate();
-}
-
-
-/* =========================================
+/* =========================================================
    TOAST
-========================================= */
+========================================================= */
+
+let toastTimer = null;
+
 
 function showToast(message) {
 
@@ -1959,6 +2405,13 @@ function showToast(message) {
 
 
     if (!toast) {
+
+        console.log(
+            "TOAST:",
+            message
+        );
+
+
         return;
     }
 
@@ -1972,12 +2425,15 @@ function showToast(message) {
     );
 
 
-    clearTimeout(
-        showToast.timeout
-    );
+    if (toastTimer) {
+
+        clearTimeout(
+            toastTimer
+        );
+    }
 
 
-    showToast.timeout =
+    toastTimer =
         setTimeout(() => {
 
             toast.classList.remove(
@@ -1988,9 +2444,9 @@ function showToast(message) {
 }
 
 
-/* =========================================
-   SEARCH BUTTON
-========================================= */
+/* =========================================================
+   FOCUS SEARCH
+========================================================= */
 
 function focusSearch() {
 
@@ -1999,147 +2455,500 @@ function focusSearch() {
 
     setTimeout(() => {
 
-        const searchInput =
+        const input =
             document.getElementById(
                 "search-input"
             );
 
 
-        if (searchInput) {
+        if (input) {
 
-            searchInput.focus();
+            input.focus();
 
-            searchInput.scrollIntoView({
-                behavior: "smooth",
-                block: "center"
-            });
+            input.select();
         }
 
-    }, 150);
+    }, 100);
 }
 
 
-/* =========================================
-   CLOSE AUTH WHEN CLICK OUTSIDE
-========================================= */
+/* =========================================================
+   SEARCH ENTER KEY
+========================================================= */
 
-document
-    .getElementById("auth-modal")
-    ?.addEventListener(
-        "click",
-        (event) => {
+function setupSearchEvents() {
 
-            /*
-             * Chỉ đóng khi click vào
-             * vùng modal bên ngoài.
-             */
+    const input =
+        document.getElementById(
+            "search-input"
+        );
+
+
+    if (!input) {
+
+        return;
+    }
+
+
+    input.addEventListener(
+        "keydown",
+        event => {
 
             if (
-                event.target.id ===
-                "auth-modal"
+                event.key ===
+                "Enter"
             ) {
 
-                closeAuthModal();
+                searchCharacters();
             }
 
         }
     );
 
 
-/* =========================================
-   ESC KEY
-========================================= */
-
-document.addEventListener(
-    "keydown",
-    (event) => {
-
-        if (event.key !== "Escape") {
-            return;
-        }
-
-
-        const authModal =
-            document.getElementById(
-                "auth-modal"
-            );
-
-
-        const bookingModal =
-            document.getElementById(
-                "booking-modal"
-            );
-
-
-        if (
-            authModal &&
-            !authModal.classList.contains(
-                "hidden"
-            )
-        ) {
-
-            closeAuthModal();
-
-            return;
-        }
-
-
-        if (
-            bookingModal &&
-            !bookingModal.classList.contains(
-                "hidden"
-            )
-        ) {
-
-            closeBooking();
-        }
-
-    }
-);
-
-
-/* =========================================
-   ADMIN
-========================================= */
-
-function openAdminPage() {
-
     /*
-     * Kiểm tra thêm ở phía client
-     * trước khi chuyển trang.
-     */
+       Tự động tìm khi người dùng
+       gõ vào ô search.
+    */
 
-    if (
-        !currentUser ||
-        currentProfile?.role !== "admin"
-    ) {
+    input.addEventListener(
+        "input",
+        () => {
 
-        showToast(
-            "Bạn không có quyền truy cập."
+            searchCharacters();
+
+        }
+    );
+}
+
+
+/* =========================================================
+   CLOSE AUTH WHEN CLICK OUTSIDE
+========================================================= */
+
+function setupModalEvents() {
+
+    const authModal =
+        document.getElementById(
+            "auth-modal"
         );
 
-        return;
+
+    if (authModal) {
+
+        authModal.addEventListener(
+            "click",
+            event => {
+
+                if (
+                    event.target ===
+                    authModal
+                ) {
+
+                    closeAuthModal();
+                }
+
+            }
+        );
     }
 
+
+    const bookingModal =
+        document.getElementById(
+            "booking-modal"
+        );
+
+
+    if (bookingModal) {
+
+        bookingModal.addEventListener(
+            "click",
+            event => {
+
+                if (
+                    event.target ===
+                    bookingModal
+                ) {
+
+                    closeBooking();
+                }
+
+            }
+        );
+    }
+}
+
+
+/* =========================================================
+   ADMIN PAGE
+========================================================= */
+
+function openAdminPage() {
 
     window.location.href =
         "admin.html";
 }
 
 
-/* =========================================
-   INITIALIZE
-========================================= */
+/* =========================================================
+   IMAGE PRELOAD
+========================================================= */
+
+function preloadCharacterImages() {
+
+    characters.forEach(
+        character => {
+
+            if (!character.image) {
+
+                return;
+            }
+
+
+            const image =
+                new Image();
+
+
+            image.src =
+                character.image;
+        }
+    );
+}
+
+
+/* =========================================================
+   REFRESH SHOP
+========================================================= */
+
+async function refreshShop() {
+
+    await loadCharactersFromSupabase();
+
+    preloadCharacterImages();
+}
+
+
+/* =========================================================
+   SUPABASE REALTIME
+========================================================= */
+
+/*
+   Phần này giúp Shop có thể nhận
+   thay đổi từ Admin mà không nhất thiết
+   phải refresh trang.
+
+   Tuy nhiên Supabase Realtime phải được
+   bật cho bảng characters.
+
+   Nếu chưa bật Realtime thì phần này
+   không gây lỗi, chỉ đơn giản không
+   nhận được event.
+*/
+
+function setupCharacterRealtime() {
+
+    try {
+
+        supabaseClient
+            .channel(
+                "characters-shop"
+            )
+            .on(
+
+                "postgres_changes",
+
+                {
+                    event: "*",
+
+                    schema: "public",
+
+                    table: "characters"
+
+                },
+
+                payload => {
+
+                    console.log(
+                        "CHARACTER CHANGE:",
+                        payload
+                    );
+
+
+                    refreshShop();
+
+                }
+
+            )
+            .subscribe(
+                status => {
+
+                    console.log(
+                        "CHARACTER REALTIME:",
+                        status
+                    );
+
+                }
+            );
+
+    } catch (error) {
+
+        console.warn(
+            "Realtime chưa được thiết lập:",
+            error
+        );
+    }
+}
+
+
+/* =========================================================
+   HANDLE PAGE VISIBILITY
+========================================================= */
+
+/*
+   Khi người dùng quay lại tab Shop,
+   kiểm tra lại sản phẩm.
+
+   Ví dụ:
+
+   Tab 1 = Shop
+   Tab 2 = Admin
+
+   Admin xóa sản phẩm.
+
+   Quay lại Tab 1.
+
+   Shop sẽ reload dữ liệu.
+*/
+
+function setupVisibilityRefresh() {
+
+    document.addEventListener(
+        "visibilitychange",
+        () => {
+
+            if (
+                document.visibilityState ===
+                "visible"
+            ) {
+
+                refreshShop();
+
+            }
+
+        }
+    );
+}
+
+
+/* =========================================================
+   HANDLE ESC KEY
+========================================================= */
+
+function setupEscapeKey() {
+
+    document.addEventListener(
+        "keydown",
+        event => {
+
+            if (
+                event.key !==
+                "Escape"
+            ) {
+
+                return;
+            }
+
+
+            closeAuthModal();
+
+            closeBooking();
+
+        }
+    );
+}
+
+
+/* =========================================================
+   DOM READY
+========================================================= */
 
 document.addEventListener(
     "DOMContentLoaded",
     async () => {
 
-        showCharacters();
+        console.log(
+            "CHIYOO SHOP INITIALIZING..."
+        );
 
-        updateAuthUI();
+
+        /*
+           Setup UI events trước.
+        */
+
+        setupSearchEvents();
+
+        setupModalEvents();
+
+        setupEscapeKey();
+
+
+        /*
+           Load Auth.
+        */
 
         await initAuth();
 
+
+        /*
+           Load sản phẩm từ Supabase.
+        */
+
+        await loadCharactersFromSupabase();
+
+
+        /*
+           Preload ảnh.
+        */
+
+        preloadCharacterImages();
+
+
+        /*
+           Supabase realtime.
+        */
+
+        setupCharacterRealtime();
+
+
+        /*
+           Khi quay lại tab Shop,
+           kiểm tra sản phẩm.
+        */
+
+        setupVisibilityRefresh();
+
+
+        console.log(
+            "CHIYOO SHOP READY."
+        );
+
     }
 );
+
+
+/* =========================================================
+   GLOBAL FUNCTIONS
+   =========================================================
+
+   Các hàm dưới đây được đưa lên window
+   để onclick="" trong index.html
+   vẫn hoạt động bình thường.
+
+   Ví dụ:
+
+       onclick="openAuthModal()"
+
+       onclick="toggleAuthMode()"
+
+       onclick="searchCharacters()"
+
+       onclick="goHome()"
+
+       onclick="previousMonth()"
+
+       onclick="nextMonth()"
+
+       onclick="closeBooking()"
+
+       onclick="submitBooking(event)"
+
+       onclick="openAdminPage()"
+========================================================= */
+
+window.openAuthModal =
+    openAuthModal;
+
+
+window.closeAuthModal =
+    closeAuthModal;
+
+
+window.toggleAuthMode =
+    toggleAuthMode;
+
+
+window.setAuthMode =
+    setAuthMode;
+
+
+window.handleAuthSubmit =
+    handleAuthSubmit;
+
+
+window.signOutUser =
+    signOutUser;
+
+
+window.searchCharacters =
+    searchCharacters;
+
+
+window.focusSearch =
+    focusSearch;
+
+
+window.showCharacters =
+    showCharacters;
+
+
+window.openCharacter =
+    openCharacter;
+
+
+window.goHome =
+    goHome;
+
+
+window.renderCalendar =
+    renderCalendar;
+
+
+window.previousMonth =
+    previousMonth;
+
+
+window.nextMonth =
+    nextMonth;
+
+
+window.openBooking =
+    openBooking;
+
+
+window.closeBooking =
+    closeBooking;
+
+
+window.submitBooking =
+    submitBooking;
+
+
+window.showToast =
+    showToast;
+
+
+window.openAdminPage =
+    openAdminPage;
+
+
+window.loadCharactersFromSupabase =
+    loadCharactersFromSupabase;
+
+
+window.refreshShop =
+    refreshShop;
+
+
+/* =========================================================
+   END
+========================================================= */
