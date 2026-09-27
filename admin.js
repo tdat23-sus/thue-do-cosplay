@@ -23,6 +23,9 @@ let editingCharacterImageUrl = null;
 
 let charactersCache = [];
 
+let currentUserId = null;
+let currentUserRole = null;
+
 // =========================
 // DOM
 // =========================
@@ -167,6 +170,9 @@ async function checkAdmin() {
         return false;
     }
 
+    currentUserId = session.user.id;
+    currentUserRole = String(profile.role || "").toLowerCase();
+
     if (accessNotice) {
         accessNotice.style.display =
             "none";
@@ -185,9 +191,12 @@ async function checkAdmin() {
     if (adminName) {
 
         adminName.textContent =
-            profile.full_name ||
+            (profile.full_name ||
             session.user.email ||
-            "Admin";
+            "Admin") +
+            (currentUserRole === "ctv"
+                ? " (CTV — chỉ quản lý gian hàng của bạn)"
+                : " (Admin — toàn quyền)");
     }
 
     return true;
@@ -976,7 +985,9 @@ if (characterForm) {
                         included_items:
                             includedItems,
                         is_active:
-                            isActive
+                            isActive,
+                        owner_id:
+                            currentUserId
                     })
                     .select()
                     .single();
@@ -1064,10 +1075,7 @@ async function loadCharacters() {
         <p>Đang tải danh sách nhân vật...</p>
     `;
 
-    const {
-        data,
-        error
-    } = await db
+    let charactersQuery = db
         .from("characters")
         .select("*")
         .order(
@@ -1076,6 +1084,21 @@ async function loadCharacters() {
                 ascending: false
             }
         );
+
+    // CTV chỉ thấy nhân vật do chính mình tạo.
+    // Admin thấy toàn bộ nhân vật của mọi CTV.
+    if (currentUserRole === "ctv") {
+        charactersQuery =
+            charactersQuery.eq(
+                "owner_id",
+                currentUserId
+            );
+    }
+
+    const {
+        data,
+        error
+    } = await charactersQuery;
 
     if (error) {
 
@@ -1110,6 +1133,44 @@ async function loadCharacters() {
         return;
     }
 
+    // Admin cần biết mỗi nhân vật là của CTV nào.
+    let ownerNameMap = new Map();
+
+    if (currentUserRole === "admin") {
+
+        const ownerIds =
+            [...new Set(
+                data
+                    .map(item => item.owner_id)
+                    .filter(Boolean)
+            )];
+
+        if (ownerIds.length) {
+
+            const {
+                data: owners,
+                error: ownersError
+            } = await db
+                .from("profiles")
+                .select("id, full_name")
+                .in("id", ownerIds);
+
+            if (ownersError) {
+                console.warn(
+                    "Không tải được tên CTV:",
+                    ownersError
+                );
+            }
+
+            ownerNameMap =
+                new Map(
+                    (owners || []).map(
+                        owner => [owner.id, owner.full_name]
+                    )
+                );
+        }
+    }
+
     characterList.innerHTML =
         data
             .map(
@@ -1135,6 +1196,26 @@ async function loadCharacters() {
                                     Chưa có ảnh
                                 </div>
                             `;
+
+                    const ownerName =
+                        character.owner_id
+                            ? ownerNameMap.get(character.owner_id)
+                            : null;
+
+                    const ownerLine =
+                        currentUserRole === "admin"
+                            ? `
+                                <p>
+                                    👤 CTV phụ trách:
+                                    <strong>
+                                        ${escapeHtml(
+                                            ownerName ||
+                                            "Chưa gán (nhân vật cũ)"
+                                        )}
+                                    </strong>
+                                </p>
+                            `
+                            : "";
 
                     return `
                         <div
@@ -1169,6 +1250,8 @@ async function loadCharacters() {
                                         )}
                                     </strong>
                                 </p>
+
+                                ${ownerLine}
 
                                 <p>
                                     Trạng thái:
@@ -1777,7 +1860,7 @@ async function loadRentalRequests() {
     ensureRentalControls(box);
     box.innerHTML = "<p>Đang tải đơn...</p>";
 
- const { data: rentals, error } = await db
+ let rentalsQuery = db
     .from("rentals")
     .select(`
         id,
@@ -1788,9 +1871,18 @@ async function loadRentalRequests() {
         status,
         customer_note,
         created_by,
-        created_at
+        created_at,
+        characters!inner(owner_id)
     `)
     .order("created_at", { ascending: false });
+
+    // CTV chỉ thấy đơn thuê của nhân vật do chính mình phụ trách.
+    // Admin thấy toàn bộ đơn của mọi CTV.
+    if (currentUserRole === "ctv") {
+        rentalsQuery = rentalsQuery.eq("characters.owner_id", currentUserId);
+    }
+
+    const { data: rentals, error } = await rentalsQuery;
 
     if (error) {
         console.error("RENTALS ERROR:", error);

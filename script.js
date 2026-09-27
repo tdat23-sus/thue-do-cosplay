@@ -723,6 +723,7 @@ async function loadCharactersFromSupabase() {
             image_url,
             included_items,
             is_active,
+            owner_id,
             created_at
         `)
         .eq("is_active", true)
@@ -732,6 +733,36 @@ async function loadCharactersFromSupabase() {
         console.error("CHARACTERS ERROR:", error);
         showToast("Không thể tải danh sách nhân vật.");
         return;
+    }
+
+    // Lấy tên CTV/gian hàng cho từng nhân vật, qua view công khai
+    // public_shop_owners (chỉ lộ id + full_name, không lộ SĐT/email).
+    const ownerIds =
+        [...new Set(
+            (data || [])
+                .map(character => character.owner_id)
+                .filter(Boolean)
+        )];
+
+    let ownerNameMap = new Map();
+
+    if (ownerIds.length) {
+        const {
+            data: owners,
+            error: ownersError
+        } = await supabaseClient
+            .from("public_shop_owners")
+            .select("id, full_name")
+            .in("id", ownerIds);
+
+        if (ownersError) {
+            console.warn("Không tải được tên gian hàng:", ownersError);
+        } else {
+            ownerNameMap =
+                new Map(
+                    (owners || []).map(owner => [owner.id, owner.full_name])
+                );
+        }
     }
 
     characters =
@@ -748,6 +779,10 @@ async function loadCharactersFromSupabase() {
                 Array.isArray(character.included_items)
                     ? character.included_items
                     : [],
+            ownerName:
+                character.owner_id
+                    ? (ownerNameMap.get(character.owner_id) || "")
+                    : "",
             rentedDays: [],
             rentalMeta: new Map(),
             preparationDays: [],
@@ -787,6 +822,7 @@ function showCharacters(list = characters) {
         const name = escapeHtml(character.name);
         const category = escapeHtml(character.category);
         const address = escapeHtml(character.address);
+        const ownerName = escapeHtml(character.ownerName || "");
 
         card.innerHTML = `
             <img
@@ -804,6 +840,11 @@ function showCharacters(list = characters) {
                 <div class="character-card-address">
                     ${address}
                 </div>
+                ${ownerName ? `
+                    <div class="character-card-owner">
+                        🏬 ${ownerName}
+                    </div>
+                ` : ""}
             </div>
         `;
 
@@ -877,6 +918,20 @@ async function openCharacter(id) {
 
     if (detailCategory) {
         detailCategory.textContent = character.category;
+    }
+
+    const detailOwner =
+        document.getElementById("detail-owner");
+
+    if (detailOwner) {
+        if (character.ownerName) {
+            detailOwner.textContent =
+                "🏬 Gian hàng: " + character.ownerName;
+            detailOwner.classList.remove("hidden");
+        } else {
+            detailOwner.textContent = "";
+            detailOwner.classList.add("hidden");
+        }
     }
 
     const detailName =

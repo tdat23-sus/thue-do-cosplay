@@ -513,6 +513,15 @@ a {
     font-size: 13px;
 }
 
+.character-card-owner {
+    margin-top: 6px;
+
+    color: #a15d85;
+
+    font-size: 12px;
+    font-weight: 700;
+}
+
 
 /* =========================================================
    CHARACTER PAGE
@@ -591,6 +600,21 @@ a {
 
     letter-spacing: 1.5px;
     text-transform: uppercase;
+}
+
+.detail-owner {
+    display: inline-block;
+
+    margin: 0 0 14px;
+    padding: 5px 12px;
+
+    border-radius: 999px;
+
+    background: #f5eef2;
+    color: #a15d85;
+
+    font-size: 12px;
+    font-weight: 700;
 }
 
 .detail-info h1 {

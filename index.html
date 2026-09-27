@@ -2,403 +2,86 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+    <meta name="description" content="Chiyoo Shop - Cho thuê trang phục cosplay">
 
-    <title>Chiyoo Shop — Admin</title>
+    <title>Chiyoo Shop - Cho thuê cosplay</title>
+
+    <link rel="stylesheet" href="style.css">
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: #f7f7fb;
-            color: #222;
-        }
-
-        header {
-            background: #111;
-            color: white;
-            padding: 18px 20px;
+        .auth-area {
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            gap: 15px;
-        }
-
-        header h1 {
-            margin: 0;
-            font-size: 20px;
-        }
-
-        header p {
-            margin: 5px 0 0;
-            opacity: .75;
-            font-size: 13px;
-        }
-
-        .header-buttons {
-            display: flex;
             gap: 8px;
+            margin-left: 10px;
         }
 
-        button {
-            border: 0;
-            border-radius: 10px;
-            padding: 11px 15px;
+        .auth-button {
+            border: 1px solid rgba(0, 0, 0, .12);
+            background: #fff;
+            border-radius: 999px;
+            padding: 9px 14px;
             cursor: pointer;
-            font-weight: 600;
+            font: inherit;
         }
 
-        button:disabled {
-            opacity: .6;
-            cursor: not-allowed;
-        }
-
-        .btn-light {
-            background: white;
-            color: #222;
-        }
-
-        .btn-dark {
+        .auth-button.primary {
             background: #222;
-            color: white;
+            color: #fff;
+            border-color: #222;
         }
 
-        main {
-            width: min(1100px, calc(100% - 30px));
-            margin: 25px auto 50px;
-        }
-
-        .admin-message {
-            padding: 14px 16px;
-            border-radius: 10px;
-            margin-bottom: 18px;
+        .auth-user {
             display: none;
-        }
-
-        .admin-message.success {
-            background: #e9f9ee;
-            color: #176b32;
-        }
-
-        .admin-message.error {
-            background: #ffe9ed;
-            color: #a51d35;
-        }
-
-        .panel {
-            background: white;
-            border-radius: 16px;
-            padding: 22px;
-            margin-bottom: 22px;
-            box-shadow: 0 4px 20px rgba(0,0,0,.06);
-        }
-
-        .panel h2 {
-            margin-top: 0;
-        }
-
-        .form-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 7px;
-        }
-
-        .form-group.full {
-            grid-column: 1 / -1;
-        }
-
-        label {
-            font-size: 14px;
-            font-weight: 600;
-        }
-
-        input,
-        textarea {
-            width: 100%;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-            padding: 12px;
-            font-size: 15px;
-            outline: none;
-        }
-
-        input:focus,
-        textarea:focus {
-            border-color: #888;
-        }
-
-        textarea {
-            min-height: 100px;
-            resize: vertical;
-        }
-
-        input[type="checkbox"] {
-            width: auto;
-        }
-
-        .image-preview-box {
-            margin-top: 10px;
-        }
-
-        #image-preview {
-            display: none;
-            width: 100%;
-            max-width: 500px;
-            aspect-ratio: 16 / 9;
-            object-fit: contain;
-            background: #f1f1f1;
-            border-radius: 12px;
-            border: 1px solid #ddd;
-        }
-
-        .current-image-note {
-            display: none;
-            margin-top: 8px;
-            color: #777;
+            align-items: center;
+            gap: 8px;
             font-size: 13px;
         }
 
-        .form-buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-
-        .submit-button {
-            background: #111;
-            color: white;
-            width: 100%;
-            font-size: 15px;
-            margin-top: 0;
-        }
-
-        .cancel-edit-button {
-            display: none;
-            background: #eee;
-            color: #222;
-            min-width: 130px;
-        }
-
-        .edit-mode-title {
-            color: #8a5a00;
-        }
-
-        #character-list {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 18px;
-        }
-
-        .admin-character-card {
-            border: 1px solid #eee;
-            border-radius: 14px;
+        .auth-user-name {
+            max-width: 130px;
             overflow: hidden;
-            background: white;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
-        .admin-character-image {
-            width: 100%;
-            aspect-ratio: 16 / 9;
-            object-fit: contain;
-            background: #f1f1f1;
-            display: block;
-        }
-
-        .admin-character-no-image {
-            width: 100%;
-            aspect-ratio: 16 / 9;
+        .auth-role {
+            font-size: 10px;
+            padding: 3px 7px;
+            border-radius: 999px;
             background: #eee;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #888;
         }
 
-        .admin-character-info {
-            padding: 15px;
-        }
-
-        .admin-character-info h3 {
-            margin: 0 0 6px;
-        }
-
-        .admin-character-info p {
-            margin: 6px 0;
+        .auth-message {
+            margin: 0 0 14px;
             color: #666;
             font-size: 14px;
         }
 
-        .admin-character-actions {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin-top: 10px;
+        .auth-switch {
+            border: 0;
+            background: none;
+            text-decoration: underline;
+            cursor: pointer;
+            font: inherit;
+            padding: 4px;
         }
 
-        .admin-character-actions button {
-            margin-top: 0;
-            background: #eee;
-        }
-
-        .edit-character-button {
-            background: #fff3cd !important;
-            color: #7a5200;
-        }
-
-        .delete-character-button {
-            background: #ffe7e7 !important;
-            color: #a51d35;
-        }
-
-        #access-notice {
-            background: white;
-            border-radius: 16px;
-            padding: 30px;
-            box-shadow: 0 4px 20px rgba(0,0,0,.06);
-        }
-
-        .admin-rental-card {
-            border: 1px solid #eee;
-            border-radius: 14px;
-            padding: 16px;
-            margin-bottom: 14px;
-            background: #fff;
-        }
-
-        .admin-rental-head {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-
-        .admin-rental-head h3 {
-            margin: 0 0 4px;
-        }
-
-        .admin-rental-head p {
-            margin: 3px 0;
-            font-size: 13px;
-            color: #555;
-        }
-
-        .admin-rental-status {
-            font-size: 12px;
-            font-weight: 700;
-            padding: 5px 10px;
-            border-radius: 999px;
-            white-space: nowrap;
-            background: #eee;
-        }
-
-        .admin-rental-status.pending {
-            background: #fff3cd;
-            color: #8a5a00;
-        }
-
-        .admin-rental-status.confirmed {
-            background: #e9f9ee;
-            color: #176b32;
-        }
-
-        .admin-rental-status.cancelled,
-        .admin-rental-status.rejected {
-            background: #ffe9ed;
-            color: #a51d35;
-        }
-
-        .admin-rental-status.completed {
-            background: #e7edff;
-            color: #253e9e;
-        }
-
-        .admin-rental-customer {
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px dashed #e5e7eb;
-            font-size: 14px;
-        }
-
-        .admin-rental-customer p {
-            margin: 4px 0;
-        }
-
-        .admin-rental-actions {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin-top: 12px;
-        }
-
-        .admin-rental-actions button {
-            background: #eee;
-            font-size: 13px;
-            padding: 9px 13px;
-        }
-
-        .admin-rental-actions button.danger {
-            background: #ffe7e7;
-            color: #a51d35;
-        }
-
-        @media (max-width: 700px) {
-            header {
-                align-items: flex-start;
-                flex-direction: column;
+        @media (max-width: 650px) {
+            .auth-user-name {
+                display: none;
             }
 
-            .header-buttons {
-                width: 100%;
+            .auth-button {
+                padding: 8px 11px;
             }
 
-            .header-buttons button {
-                flex: 1;
-            }
-
-            .form-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .form-group.full {
-                grid-column: auto;
-            }
-
-            #character-list {
-                grid-template-columns: 1fr;
-            }
-
-            main {
-                width: min(100% - 20px, 1100px);
-                margin-top: 15px;
-            }
-
-            .panel {
-                padding: 16px;
-            }
-
-            .form-buttons {
-                flex-direction: column;
-            }
-
-            .cancel-edit-button {
-                width: 100%;
+            .header-inner {
+                gap: 6px;
             }
         }
     </style>
@@ -406,241 +89,527 @@
 
 <body>
 
-<header>
-    <div>
-        <h1>Chiyoo Shop — Admin</h1>
-        <p>Xin chào, <span id="admin-name">Admin</span></p>
-    </div>
+    <!-- HEADER -->
+    <header class="header">
 
-    <div class="header-buttons">
-        <button
-            id="shop-button"
-            class="btn-light"
-            type="button"
+        <div class="header-inner">
+
+            <a href="#" class="logo" onclick="goHome()">
+                <span class="logo-icon">✦</span>
+                <span>Chiyoo Shop</span>
+            </a>
+
+            <div class="header-actions">
+
+                <!-- CHỈ ADMIN MỚI THẤY -->
+                <button
+                    id="admin-button"
+                    class="admin-button"
+                    onclick="openAdminPage()"
+                    style="display: none;"
+                >
+                    ⚙ Quản trị
+                </button>
+
+                <button
+                    class="search-button"
+                    onclick="focusSearch()"
+                >
+                    🔍
+                </button>
+
+                <!-- AUTH -->
+                <div class="auth-area">
+
+                    <button
+                        id="auth-button"
+                        class="auth-button primary"
+                        onclick="openAuthModal()"
+                    >
+                        Đăng nhập
+                    </button>
+
+                    <div id="auth-user" class="auth-user">
+
+                        <span
+                            id="auth-user-name"
+                            class="auth-user-name"
+                        ></span>
+
+                        <span
+                            id="auth-user-role"
+                            class="auth-role"
+                        ></span>
+
+                        <button
+                            class="auth-button"
+                            onclick="signOutUser()"
+                        >
+                            Thoát
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </header>
+
+
+    <!-- MAIN -->
+    <main>
+
+        <!-- HOME -->
+        <section id="home-page">
+
+            <section class="hero">
+
+                <div class="hero-content">
+
+                    <p class="hero-small">
+                        CHIYOO SHOP
+                    </p>
+
+                    <h1>
+                        Rent<br>
+                        your Dream <span>Role.</span>
+                    </h1>
+
+                    <p class="hero-description">
+                        Khám phá các bộ cosplay đang có sẵn
+                        và kiểm tra lịch thuê của từng nhân vật.
+                    </p>
+
+                </div>
+
+            </section>
+
+
+            <!-- SEARCH -->
+            <section class="search-section">
+
+                <div class="search-box">
+
+                    <span>🔍</span>
+
+                    <input
+                        id="search-input"
+                        type="text"
+                        placeholder="Tìm tên nhân vật..."
+                        oninput="searchCharacters()"
+                    >
+
+                </div>
+
+            </section>
+
+
+            <!-- CHARACTER -->
+            <section class="characters-section">
+
+                <div class="section-heading">
+
+                    <div>
+
+                        <p class="section-small">
+                            COLLECTION
+                        </p>
+
+                        <h2>
+                            Nhân vật
+                        </h2>
+
+                    </div>
+
+                    <span id="character-count"></span>
+
+                </div>
+
+
+                <div
+                    id="character-list"
+                    class="character-grid"
+                ></div>
+
+            </section>
+
+        </section>
+
+
+        <!-- CHARACTER DETAIL -->
+        <section
+            id="character-page"
+            class="character-page hidden"
         >
-            Xem shop
-        </button>
 
-        <button
-            id="logout-button"
-            class="btn-dark"
-            type="button"
-        >
-            Đăng xuất
-        </button>
-    </div>
-</header>
+            <button
+                class="back-button"
+                onclick="goHome()"
+            >
+                ← Quay lại
+            </button>
 
-<main>
 
-    <!-- THÔNG BÁO -->
+            <div class="character-detail">
+
+                <div class="detail-image-wrapper">
+
+                    <img
+                        id="detail-image"
+                        src=""
+                        alt=""
+                        class="detail-image"
+                    >
+
+                </div>
+                <!-- IMAGE LIGHTBOX -->
+<div id="image-lightbox" class="image-lightbox hidden">
+
     <div
-        id="admin-message"
-        class="admin-message"
+        class="image-lightbox-overlay"
+        onclick="closeImageLightbox()"
     ></div>
 
-    <!-- KIỂM TRA QUYỀN -->
-    <div
-        id="access-notice"
-        style="display:none;"
+    <button
+        class="image-lightbox-close"
+        onclick="closeImageLightbox()"
+        aria-label="Đóng"
     >
-        <h2>Đang kiểm tra quyền...</h2>
-        <p>Vui lòng chờ một chút.</p>
-    </div>
+        ×
+    </button>
 
-    <!-- NỘI DUNG ADMIN -->
-    <div
-        id="admin-content"
-        style="display:none;"
+    <img
+        id="lightbox-image"
+        class="lightbox-image"
+        src=""
+        alt=""
     >
 
-        <!-- THÊM / SỬA NHÂN VẬT -->
-        <section class="panel">
+</div>
+                
 
-            <h2 id="character-form-title">
-                ➕ Thêm nhân vật
+
+                <div class="detail-info">
+
+                    <p
+                        id="detail-category"
+                        class="detail-category"
+                    ></p>
+
+                    <p
+                        id="detail-owner"
+                        class="detail-owner hidden"
+                    ></p>
+
+                    <h1 id="detail-name"></h1>
+
+                    <p
+                        id="detail-description"
+                        class="detail-description"
+                    ></p>
+
+
+                   <div class="address-box">
+    <span>Địa chỉ đồ</span>
+    <strong id="detail-address"></strong>
+</div>
+
+
+                    <div class="included">
+
+                        <h3>Bộ cosplay gồm</h3>
+
+                        <ul id="detail-items"></ul>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- CALENDAR -->
+            <section class="calendar-section">
+
+                <div class="calendar-header">
+
+                    <div>
+
+                        <p class="section-small">
+                            AVAILABILITY
+                        </p>
+
+                        <h2>
+                            Lịch thuê
+                        </h2>
+
+                    </div>
+
+
+                    <div class="month-control">
+
+                        <button onclick="previousMonth()">
+                            ‹
+                        </button>
+
+                        <strong id="month-title"></strong>
+
+                        <button onclick="nextMonth()">
+                            ›
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <div class="calendar-legend">
+
+                    <span>
+                        <i class="dot available"></i>
+                        Còn trống
+                    </span>
+
+                    <span>
+                        <i class="dot rented"></i>
+                        Đã thuê
+                    </span>
+
+                </div>
+
+
+                <div
+                    id="calendar"
+                    class="calendar"
+                ></div>
+
+
+                <div class="booking-note">
+
+                    <span>💡</span>
+
+                    <p>
+                        Chọn một ngày còn trống để gửi yêu cầu thuê.
+                    </p>
+
+                </div>
+
+            </section>
+
+        </section>
+
+    </main>
+
+
+    <!-- AUTH MODAL -->
+    <div
+        id="auth-modal"
+        class="modal hidden"
+    >
+
+        <div class="modal-box">
+
+            <button
+                class="modal-close"
+                onclick="closeAuthModal()"
+            >
+                ×
+            </button>
+
+            <p class="section-small">
+                CHIYOO SHOP
+            </p>
+
+            <h2 id="auth-title">
+                Đăng nhập
             </h2>
 
-            <form id="character-form">
+            <p
+                id="auth-message"
+                class="auth-message"
+            ></p>
 
-                <div class="form-grid">
+            <form
+                id="auth-form"
+                onsubmit="handleAuthSubmit(event)"
+            >
 
-                    <!-- TÊN -->
-                    <div class="form-group">
-                        <label for="character-name">
-                            Tên nhân vật
-                        </label>
+                <label
+                    id="auth-name-label"
+                    class="hidden"
+                >
+                    Họ và tên
 
-                        <input
-                            type="text"
-                            id="character-name"
-                            placeholder="Ví dụ: Hu Tao"
-                            required
-                        >
-                    </div>
-
-                    <!-- THỂ LOẠI -->
-                    <div class="form-group">
-                        <label for="character-category">
-                            Thể loại
-                        </label>
-
-                        <input
-                            type="text"
-                            id="character-category"
-                            placeholder="Ví dụ: Genshin Impact"
-                            required
-                        >
-                    </div>
-
-                    <!-- ĐỊA CHỈ -->
-                    <div class="form-group">
-                        <label for="character-address">
-                            Địa chỉ đồ
-                        </label>
-
-                        <input
-                            type="text"
-                            id="character-address"
-                            placeholder="Ví dụ: Quận 1, TP.HCM"
-                            required
-                        >
-                    </div>
-
-                    <!-- ẢNH -->
-                    <div class="form-group">
-                        <label for="character-image">
-                            Ảnh nhân vật
-                        </label>
-
-                        <input
-                            type="file"
-                            id="character-image"
-                            accept="image/*"
-                        >
-
-                        <small id="current-image-note"
-                               class="current-image-note">
-                            Đang sử dụng ảnh hiện tại.
-                            Chọn ảnh mới nếu muốn thay ảnh.
-                        </small>
-                    </div>
-
-                    <!-- MÔ TẢ -->
-                    <div class="form-group full">
-                        <label for="character-description">
-                            Mô tả
-                        </label>
-
-                        <textarea
-                            id="character-description"
-                            placeholder="Mô tả về bộ cosplay..."
-                        ></textarea>
-                    </div>
-
-                    <!-- PHỤ KIỆN -->
-                    <div class="form-group full">
-                        <label for="character-items">
-                            Phụ kiện đi kèm
-                        </label>
-
-                        <textarea
-                            id="character-items"
-                            placeholder="Tóc giả&#10;Trang phục&#10;Phụ kiện..."
-                        ></textarea>
-
-                        <small>
-                            Mỗi phụ kiện viết trên một dòng.
-                        </small>
-                    </div>
-
-                    <!-- TRẠNG THÁI -->
-                    <div class="form-group full">
-
-                        <label>
-                            <input
-                                type="checkbox"
-                                id="character-active"
-                                checked
-                            >
-
-                            Hiển thị nhân vật trên shop
-                        </label>
-
-                    </div>
-
-                    <!-- PREVIEW -->
-                    <div class="form-group full">
-
-                        <label>
-                            Xem trước ảnh
-                        </label>
-
-                        <div class="image-preview-box">
-
-                            <img
-                                id="image-preview"
-                                src=""
-                                alt="Xem trước ảnh"
-                            >
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-                <div class="form-buttons">
-
-                    <button
-                        type="submit"
-                        id="submit-character-button"
-                        class="submit-button"
+                    <input
+                        id="auth-name"
+                        type="text"
+                        placeholder="Nguyễn Văn A"
                     >
-                        Upload ảnh & lưu nhân vật
-                    </button>
+                </label>
 
-                    <button
-                        type="button"
-                        id="cancel-edit-button"
-                        class="cancel-edit-button"
+
+                <label>
+                    Email
+
+                    <input
+                        id="auth-email"
+                        type="email"
+                        placeholder="email@example.com"
+                        required
                     >
-                        Hủy sửa
-                    </button>
+                </label>
 
-                </div>
+
+                <label>
+                    Mật khẩu
+
+                    <input
+                        id="auth-password"
+                        type="password"
+                        placeholder="Ít nhất 6 ký tự"
+                        minlength="6"
+                        required
+                    >
+                </label>
+
+
+                <button
+                    id="auth-submit"
+                    class="submit-button"
+                    type="submit"
+                >
+                    Đăng nhập
+                </button>
 
             </form>
 
-        </section>
 
-        <!-- QUẢN LÝ ĐƠN THUÊ -->
-        <section class="panel">
+            <p
+                style="
+                    margin-top:14px;
+                    text-align:center;
+                    font-size:14px;
+                "
+            >
 
-            <h2>🗓️ Quản lý đơn thuê</h2>
+                <span id="auth-switch-text">
+                    Chưa có tài khoản?
+                </span>
 
-            <div id="rental-request-list">
-                <p>Đang tải...</p>
-            </div>
+                <button
+                    id="auth-switch"
+                    class="auth-switch"
+                    type="button"
+                    onclick="toggleAuthMode()"
+                >
+                    Đăng ký
+                </button>
 
-        </section>
+            </p>
 
-        <!-- DANH SÁCH -->
-        <section class="panel">
-
-            <h2>📦 Nhân vật hiện có</h2>
-
-            <div id="character-list">
-                <p>Đang tải...</p>
-            </div>
-
-        </section>
+        </div>
 
     </div>
 
-</main>
 
-<script src="admin.js"></script>
+    <!-- BOOKING MODAL -->
+    <div
+        id="booking-modal"
+        class="modal hidden"
+    >
+
+        <div
+            class="modal-overlay"
+            onclick="closeBooking()"
+        ></div>
+
+        <div class="modal-box">
+
+            <button
+                class="modal-close"
+                onclick="closeBooking()"
+            >
+                ×
+            </button>
+
+            <p class="section-small">
+                ĐẶT THUÊ
+            </p>
+
+            <h2 id="booking-title">
+                Đặt cosplay
+            </h2>
+
+            <p
+                id="booking-date"
+                class="booking-date"
+            ></p>
+
+
+            <form onsubmit="submitBooking(event)">
+
+                <label>
+                    Họ và tên
+
+                    <input
+                        id="customer-name"
+                        type="text"
+                        placeholder="Nguyễn Văn A"
+                        required
+                    >
+                </label>
+
+
+                <label>
+                    Số điện thoại
+
+                    <input
+                        id="customer-phone"
+                        type="tel"
+                        placeholder="09xxxxxxxx"
+                        required
+                    >
+                </label>
+
+
+                <label>
+                    Ghi chú
+
+                    <textarea
+                        id="customer-note"
+                        placeholder="Ví dụ: muốn nhận đồ buổi sáng..."
+                    ></textarea>
+
+                </label>
+
+
+                <button
+                    class="submit-button"
+                    type="submit"
+                >
+                    Gửi yêu cầu thuê
+                </button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+
+    <!-- TOAST -->
+    <div
+        id="toast"
+        class="toast"
+    >
+        Đã gửi yêu cầu!
+    </div>
+
+
+    <script src="script.js"></script>
 
 </body>
 </html>
