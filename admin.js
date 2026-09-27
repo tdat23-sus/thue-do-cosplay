@@ -1552,20 +1552,21 @@ db.auth.onAuthStateChange(
 // INIT
 // =========================
 
-async function initAdmin() {
 
-    const isAdmin =
-        await checkAdmin();
+async function initAdmin() {
+    const isAdmin = await checkAdmin();
 
     if (!isAdmin) {
         return;
     }
 
     await loadCharacters();
+
+    // Tải danh sách đơn thuê sau khi kiểm tra quyền
+    await loadRentalRequests();
 }
 
 initAdmin();
-
 // =========================
 // RENTAL MANAGEMENT
 // =========================
@@ -1822,7 +1823,6 @@ checkAdmin = async function() {
     if (ok) await loadRentalRequests();
     return ok;
 };
-
 // Realtime: cập nhật danh sách khi có thay đổi trên rentals.
 // Nếu Realtime chưa bật ở Supabase, trang vẫn hoạt động qua nút Tải lại.
 let rentalRealtimeChannel = null;
