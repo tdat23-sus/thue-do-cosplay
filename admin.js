@@ -11,6 +11,8 @@ const db = createClient(
     SUPABASE_KEY
 );
 
+window.debugShopDB = db;
+
 const BUCKET = "character-images";
 
 let selectedFile = null;
