@@ -1,3 +1,5 @@
+console.log("admin.js loaded — v2 (rental panel + safe delete)");
+
 const SUPABASE_URL =
     "https://rydkgmtlmhjftbwukzdn.supabase.co";
 
