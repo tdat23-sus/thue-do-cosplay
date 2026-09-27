@@ -1729,10 +1729,20 @@ async function loadRentalRequests() {
     ensureRentalControls(box);
     box.innerHTML = "<p>Đang tải đơn...</p>";
 
-    const { data: rentals, error } = await db
-        .from("rentals")
-        .select("id,user_id,character_id,start_date,end_date,status,customer_note,customer_name,customer_phone,created_by,source,created_at")
-        .order("created_at", { ascending: false });
+ const { data: rentals, error } = await db
+    .from("rentals")
+    .select(`
+        id,
+        user_id,
+        character_id,
+        start_date,
+        end_date,
+        status,
+        customer_note,
+        created_by,
+        created_at
+    `)
+    .order("created_at", { ascending: false });
 
     if (error) {
         console.error("RENTALS ERROR:", error);
